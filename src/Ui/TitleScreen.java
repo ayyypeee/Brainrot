@@ -18,7 +18,7 @@ public class TitleScreen extends JPanel implements KeyListener {
 
         //GIF background
         try {
-            gifBackground = new ImageIcon(getClass().getResource("/background.gif"));
+            gifBackground = new ImageIcon(getClass().getResource("/bg4.gif"));
             bgImage = gifBackground.getImage();
             gifBackground.setImageObserver(this);
         } catch (Exception e) {

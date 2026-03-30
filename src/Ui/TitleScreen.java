@@ -1,6 +1,5 @@
 package Ui;
 
-import Main.Game;
 import javax.sound.sampled.*;
 import javax.swing.*;
 import java.awt.*;
@@ -15,18 +14,15 @@ public class TitleScreen extends JPanel implements KeyListener {
     Clip bgMusic;
 
     public TitleScreen() {
-
-        //GIF background
         try {
-            gifBackground = new ImageIcon(getClass().getResource("/bg4.gif"));
+            gifBackground = new ImageIcon(getClass().getResource("/backgrounds/bg.gif"));
             bgImage = gifBackground.getImage();
             gifBackground.setImageObserver(this);
         } catch (Exception e) {
             System.out.println("GIF not found: " + e.getMessage());
         }
 
-        //background music
-        playMusic("/bgMusic2.wav");
+        playMusic("/audio/bgMusic2.wav");
 
         window = new JFrame("Human vs Brainrot");
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -88,12 +84,11 @@ public class TitleScreen extends JPanel implements KeyListener {
     @Override
     public void keyPressed(KeyEvent e) {
         if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-            //stopMusic();
+            stopMusic();
             exitFullScreen();
             window.dispose();
-            new Game();
+            new CharacterSelect();
         }
-
     }
 
     @Override public void keyReleased(KeyEvent e) {}

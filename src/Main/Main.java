@@ -1,10 +1,11 @@
 package Main;
 
-import Ui.TitleScreen;
+import Ui.LoginScreen;
+
 
 public class Main {
     public static void main(String[] args) {
-        new TitleScreen();
+        new LoginScreen();
 
     }
 }

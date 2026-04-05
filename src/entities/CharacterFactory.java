@@ -1,5 +1,7 @@
 package entities;
 
+import java.awt.GraphicsEnvironment;
+import java.awt.GraphicsDevice;
 import java.util.ArrayList;
 
 public class CharacterFactory {
@@ -36,14 +38,11 @@ public class CharacterFactory {
         skill2Regions  = new ArrayList<>();
         skill2Heights  = new ArrayList<>();
         skill2Paddings = new ArrayList<>();
-
         registerAllCharacters();
     }
 
     private void registerAllCharacters() {
-
-        addCharacter(
-                "AIP",
+        addCharacter("AIP",
                 "/characters/idle_gif/v1_aip_moving.gif",
                 "/characters/heads/AIP(Head).png",
                 "/characters/walk_png/v1_clean_aip_walk.png",
@@ -51,21 +50,17 @@ public class CharacterFactory {
                 "/characters/skills/skill1/v1 sk1 aip.png",
                 new int[][]{{128,359},{704,1031},{1360,1607}}, 512, 40,
                 "/characters/skills/skill2/v1 sk2 aip.png",
-                new int[][]{{128,503},{640,1151},{1256,1767}}, 512, 40
-        );
+                new int[][]{{128,503},{640,1151},{1256,1767}}, 512, 40);
 
-        addCharacter(
-                "Christian",
+        addCharacter("Christian",
                 "/characters/idle_gif/v1_christian_moving_idle.gif",
                 "/characters/heads/christian(Head).png",
                 null, null, 0, 72,
                 "/characters/skills/skill1/v1 sk1 christian.png",
                 new int[][]{{144,359},{592,927},{1072,1271}}, 512, 32,
-                null, null, 0, 0
-        );
+                null, null, 0, 0);
 
-        addCharacter(
-                "Kimmay",
+        addCharacter("Kimmay",
                 "/characters/idle_gif/v1_kimmay_moving_idle.gif",
                 "/characters/heads/kimmay(Head).png",
                 "/characters/walk_png/v2_clean_kimwalking.png",
@@ -73,11 +68,9 @@ public class CharacterFactory {
                 "/characters/skills/skill1/v1 skill1 kimmay (1).png",
                 new int[][]{{80,439},{592,1047},{1216,1495},{1504,1583}}, 512, 48,
                 "/characters/skills/skill2/v1_kimmay_skill2.png",
-                new int[][]{{24,455},{576,1047},{1160,1567}}, 512, 16
-        );
+                new int[][]{{24,455},{576,1047},{1160,1567}}, 512, 16);
 
-        addCharacter(
-                "Dianne",
+        addCharacter("Dianne",
                 "/characters/idle_gif/v1_dianne_moving_idle.gif",
                 "/characters/heads/dianne (2)(Head).png",
                 "/characters/walk_png/v1_clean_diannewalking.png",
@@ -85,11 +78,9 @@ public class CharacterFactory {
                 "/characters/skills/skill1/v1 sk1 dianne.png",
                 new int[][]{{128,447},{688,1111},{1392,1687}}, 512, 32,
                 "/characters/skills/skill2/v1 sk2 dianne .png",
-                new int[][]{{152,367},{480,847},{928,1271}}, 512, 24
-        );
+                new int[][]{{152,367},{480,847},{928,1271}}, 512, 24);
 
-        addCharacter(
-                "Cyberg",
+        addCharacter("Cyberg",
                 "/characters/idle_gif/v1_cyberg_moving_idle.gif",
                 "/characters/heads/cyberg(Head).png",
                 "/characters/walk_png/v1_clean_cyberg_walk.png",
@@ -97,11 +88,9 @@ public class CharacterFactory {
                 "/characters/skills/skill1/v1_cyberg_skill1.png",
                 new int[][]{{144,367},{504,823},{952,1183}}, 512, 48,
                 "/characters/skills/skill2/v1 sk2 cyberg.png",
-                new int[][]{{136,343},{432,647},{736,1015},{1136,1287}}, 512, 40
-        );
+                new int[][]{{136,343},{432,647},{736,1015},{1136,1287}}, 512, 40);
 
-        addCharacter(
-                "Tung Tung",
+        addCharacter("Tung Tung",
                 "/characters/idle_gif/v1_tungtung_moving_idle.gif",
                 null,
                 "/characters/walk_png/v1_RIGHT_walking_tungtung_SHEET.png",
@@ -109,11 +98,9 @@ public class CharacterFactory {
                 "/characters/skills/skill1/v1_tungtung_skill1.png",
                 new int[][]{{32,327},{432,863},{912,1247}}, 512, 16,
                 "/characters/skills/skill2/v1_tungtung_skill2.png",
-                new int[][]{{24,439},{464,879},{920,1311},{1336,1751}}, 512, 24
-        );
+                new int[][]{{24,439},{464,879},{920,1311},{1336,1751}}, 512, 24);
 
-        addCharacter(
-                "Cappucino",
+        addCharacter("Cappucino",
                 "/characters/idle_gif/v1_cappucino_moving_idle.gif",
                 "/characters/heads/cappucino head.png",
                 "/characters/walk_png/v1_cappucino_walking.png",
@@ -121,11 +108,9 @@ public class CharacterFactory {
                 "/characters/skills/skill1/v1_cappucino_skill1.png",
                 new int[][]{{32,311},{360,695}}, 512, 80,
                 "/characters/skills/skill2/v1_cappucino_skill2.png",
-                new int[][]{{56,247},{312,623},{688,1175}}, 512, 120
-        );
+                new int[][]{{56,247},{312,623},{688,1175}}, 512, 120);
 
-        addCharacter(
-                "Ballerina",
+        addCharacter("Ballerina",
                 "/characters/idle_gif/v1_ballerina_moving_idle.gif",
                 null,
                 "/characters/walk_png/v1_ballerina_walking.png",
@@ -133,11 +118,9 @@ public class CharacterFactory {
                 "/characters/skills/skill1/ballerina_cappucina_skill1.png",
                 new int[][]{{64,295},{352,663},{752,967}}, 512, 8,
                 "/characters/skills/skill2/v1_ballerina_skill2.png",
-                new int[][]{{40,239},{328,695},{728,999}}, 512, 32
-        );
+                new int[][]{{40,239},{328,695},{728,999}}, 512, 32);
 
-        addCharacter(
-                "Tralalelo",
+        addCharacter("Tralalelo",
                 "/characters/idle_gif/v1_tralalelo_moving_idle.gif",
                 null,
                 "/characters/walk_png/v1_tralalelo_walking.png",
@@ -145,8 +128,7 @@ public class CharacterFactory {
                 "/characters/skills/skill1/v1_tralalelo_skill1.png",
                 new int[][]{{104,383},{456,1111}}, 512, 64,
                 "/characters/skills/skill2/v1_tralalelo_skill2.png",
-                new int[][]{{48,335},{368,719},{728,1143}}, 512, 32
-        );
+                new int[][]{{48,335},{368,719},{728,1143}}, 512, 32);
     }
 
     private void addCharacter(
@@ -154,7 +136,6 @@ public class CharacterFactory {
             String walkSheet, int[][] walkReg, int walkH, int walkPad,
             String sk1Sheet, int[][] sk1Reg, int sk1H, int sk1Pad,
             String sk2Sheet, int[][] sk2Reg, int sk2H, int sk2Pad) {
-
         names.add(name);
         idleGifPaths.add(idleGif);
         headPaths.add(headPath);
@@ -172,26 +153,24 @@ public class CharacterFactory {
         skill2Paddings.add(Integer.valueOf(sk2Pad));
     }
 
-    public int getCount() { return names.size(); }
+    public int    getCount()              { return names.size(); }
+    public String getName(int i)          { return names.get(i); }
+    public String getIdleGifPath(int i)   { return idleGifPaths.get(i); }
+    public String getHeadPath(int i)      { return headPaths.get(i); }
+    public String getWalkSheet(int i)     { return walkSheets.get(i); }
+    public String getSkill1Sheet(int i)   { return skill1Sheets.get(i); }
+    public String getSkill2Sheet(int i)   { return skill2Sheets.get(i); }
 
-    public String getName(int index) { return names.get(index); }
+    public Character buildCharacter(int index, Class<?> loader, int screenW, int screenH) {
+        int charH = (int)(screenH * 0.28);
+        int charW = (int)(charH * 0.45);
+        int speed = Math.max(4, screenW / 256);
 
-    public String getIdleGifPath(int index) { return idleGifPaths.get(index); }
-
-    public String getHeadPath(int index) { return headPaths.get(index); }
-
-    public String getWalkSheet(int index) { return walkSheets.get(index); }
-
-    public String getSkill1Sheet(int index) { return skill1Sheets.get(index); }
-
-    public String getSkill2Sheet(int index) { return skill2Sheets.get(index); }
-
-    public Character buildCharacter(int index, Class<?> loader) {
-        return new Character(
+        Character c = new Character(
                 walkSheets.get(index),
                 walkRegions.get(index),
                 walkHeights.get(index).intValue(),
-                128, 280,
+                charW, charH,
                 walkPaddings.get(index).intValue(),
                 idleGifPaths.get(index),
                 skill1Sheets.get(index),
@@ -204,5 +183,7 @@ public class CharacterFactory {
                 skill2Paddings.get(index).intValue(),
                 loader
         );
+        c.speed = speed;
+        return c;
     }
 }

@@ -16,11 +16,11 @@ public class TestWalkPanel extends JPanel implements KeyListener {
         this.character = character;
 
         try {
-            bgImage = new ImageIcon(getClass().getResource("/backgrounds/background.png")).getImage();
+            bgImage = new ImageIcon(getClass().getResource(
+                    "/backgrounds/background.png")).getImage();
         } catch (Exception e) { System.out.println("Background not found"); }
 
         character.setImageObserver(this);
-
         setFocusable(true);
         addKeyListener(this);
 
@@ -55,22 +55,35 @@ public class TestWalkPanel extends JPanel implements KeyListener {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+
         if (bgImage != null)
             g.drawImage(bgImage, 0, 0, getWidth(), getHeight(), this);
         else {
             g.setColor(new Color(20, 40, 20));
             g.fillRect(0, 0, getWidth(), getHeight());
         }
+
         character.draw(g, this);
+
     }
 
     @Override
     public void keyPressed(KeyEvent e) {
         switch (e.getKeyCode()) {
             case KeyEvent.VK_D: case KeyEvent.VK_RIGHT:
-                character.movingRight = true; character.facingRight = true; break;
+                character.movingRight = true;
+                character.facingRight = true;
+                break;
             case KeyEvent.VK_A: case KeyEvent.VK_LEFT:
-                character.movingLeft = true; character.facingRight = false; break;
+                character.movingLeft  = true;
+                character.facingRight = false;
+                break;
+            case KeyEvent.VK_E:
+                character.triggerSkill1();
+                break;
+            case KeyEvent.VK_R:
+                character.triggerSkill2();
+                break;
         }
     }
 
@@ -80,7 +93,7 @@ public class TestWalkPanel extends JPanel implements KeyListener {
             case KeyEvent.VK_D: case KeyEvent.VK_RIGHT:
                 character.movingRight = false; break;
             case KeyEvent.VK_A: case KeyEvent.VK_LEFT:
-                character.movingLeft = false; break;
+                character.movingLeft  = false; break;
         }
     }
 

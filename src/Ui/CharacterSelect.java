@@ -1,144 +1,161 @@
 package Ui;
 
 import entities.Character;
+import entities.CharacterFactory;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.util.ArrayList;
 
 public class CharacterSelect extends JPanel implements KeyListener {
 
-    JFrame window;
-    Image bgImage;
-    ImageIcon sirKhaiIdle;
+    private JFrame window;
+    private Image bgImage;
+    private ImageIcon sirKhaiIdle;
+    private CharacterFactory factory;
+    private ArrayList<ImageIcon> idleGifs;
 
-    String[] names = {
-            "AIP",       "Christian", "Kimmay",
-            "Dianne",    "Cyberg",    "Tung Tung",
-            "Cappucino", "Ballerina", "Tralalero"
-    };
+    private int pickingPlayer;
+    private int p1Index;
+    private int selectedIndex;
 
-    String[] idleGifPaths = {
-            "/characters/idle_gif/v1_aip_moving.gif",
-            "/characters/idle_gif/v1_christian_moving_idle.gif",
-            "/characters/idle_gif/v1_kimmay_moving_idle.gif",
-            "/characters/idle_gif/v1_dianne_moving_idle.gif",
-            "/characters/idle_gif/v1_cyberg_moving_idle.gif",
-            "/characters/idle_gif/v1_tungtung_moving_idle.gif",
-            "/characters/idle_gif/v1_cappucino_moving_idle.gif",
-            "/characters/idle_gif/v1_ballerina_moving_idle.gif",
-            "/characters/idle_gif/v1_tralalelo_moving_idle.gif"
-    };
+    private final int COLS      = 3;
+    private final int ROWS      = 3;
+    private final int CELL_SIZE = 170;
+    private final int CELL_PAD  = 50;
 
-    String[] walkSheets = {
-            "/characters/walk_png/v1_clean_aip_walk.png",
-            null,
-            "/characters/walk_png/v2_clean_kimwalking.png",
-            "/characters/walk_png/v1_clean_diannewalking.png",
-            "/characters/walk_png/v1_clean_cyberg_walk.png",
-            null, null, null, null
-    };
-
-    int[][][] allFrameRegions = {
-            {{296,519},{656,871},{1024,1239},{1368,1583}}, // AIP
-            null,
-            {{40,287},{384,615},{728,967},{1056,1287}},    // Kimmay
-            {{48,247},{328,527},{608,823},{904,1103}},     // Dianne
-            {{64,271},{408,615},{768,967},{1104,1303}},    // Cyberg
-            null, null, null, null
-    };
-
-    int[] sheetHeights  = {512,   0, 560, 512, 512, 0, 0, 0, 0};
-    int[] bottomPadding = { 72,  72,  48,  40,  32, 0, 0, 0, 0};
-
-    ImageIcon[] idleGifs = new ImageIcon[9];
-
-    final int COLS      = 3;
-    final int ROWS      = 3;
-    final int CELL_SIZE = 170;
-    final int CELL_PAD  = 50;
-
-    int gridX, gridY;
-    int selectedIndex = 0;
+    private int gridX;
+    private int gridY;
 
     public CharacterSelect() {
+        factory = new CharacterFactory();
 
-        try {
-            bgImage = new ImageIcon(getClass().getResource("/backgrounds/background.png")).getImage();
-        } catch (Exception e) { System.out.println("Background not found"); }
+        pickingPlayer = 1;
+        p1Index       = -1;
+        selectedIndex = 0;
 
-        try {
-            sirKhaiIdle = new ImageIcon(getClass().getResource("/characters/idle_gif/v1_sirkhai_moving_idle.gif"));
-            sirKhaiIdle.setImageObserver(this);
-        } catch (Exception e) { System.out.println("Sir Khai idle not found"); }
-
-        for (int i = 0; i < names.length; i++) {
-            try {
-                idleGifs[i] = new ImageIcon(getClass().getResource(idleGifPaths[i]));
-                idleGifs[i].setImageObserver(this);
-            } catch (Exception e) { System.out.println("Missing: " + idleGifPaths[i]); }
-        }
+        loadBackground();
+        loadSirKhai();
+        loadAllIdleGifs();
 
         setFocusable(true);
         addKeyListener(this);
 
-        window = new JFrame("Human vs Brainrot - Select Character");
+        setupWindow();
+
+        SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
+                int totalW = COLS * CELL_SIZE + (COLS - 1) * CELL_PAD;
+                int totalH = ROWS * CELL_SIZE + (ROWS - 1) * CELL_PAD;
+                gridX = (getWidth() / 2) - (totalW / 2) + 130;
+                gridY = (getHeight() - totalH) / 2 + 10;
+                repaint();
+            }
+        });
+
+        requestFocusInWindow();
+    }
+
+    private void loadBackground() {
+        try {
+            bgImage = new ImageIcon(getClass().getResource(
+                    "/backgrounds/background.png")).getImage();
+        } catch (Exception e) {
+            System.out.println("Background not found");
+        }
+    }
+
+    private void loadSirKhai() {
+        try {
+            sirKhaiIdle = new ImageIcon(getClass().getResource(
+                    "/characters/idle_gif/v1_sirkhai_moving_idle.gif"));
+            sirKhaiIdle.setImageObserver(this);
+        } catch (Exception e) {
+            System.out.println("Sir Khai GIF not found");
+        }
+    }
+
+    private void loadAllIdleGifs() {
+        idleGifs = new ArrayList<>();
+
+        for (int i = 0; i < factory.getCount(); i++) {
+            String path = factory.getIdleGifPath(i);
+            try {
+                ImageIcon gif = new ImageIcon(getClass().getResource(path));
+                gif.setImageObserver(this);
+                idleGifs.add(gif);
+            } catch (Exception e) {
+                System.out.println("Idle GIF not found: " + path);
+                idleGifs.add(null);
+            }
+        }
+    }
+
+    private void setupWindow() {
+        window = new JFrame("Human vs Brainrot ");
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         window.setUndecorated(true);
         window.add(this);
 
         GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-        GraphicsDevice gd = ge.getDefaultScreenDevice();
+        GraphicsDevice gd      = ge.getDefaultScreenDevice();
+
         if (gd.isFullScreenSupported()) {
             gd.setFullScreenWindow(window);
         } else {
             window.setExtendedState(JFrame.MAXIMIZED_BOTH);
             window.setVisible(true);
         }
-
-        SwingUtilities.invokeLater(() -> {
-            int totalW = COLS * CELL_SIZE + (COLS - 1) * CELL_PAD;
-            int totalH = ROWS * CELL_SIZE + (ROWS - 1) * CELL_PAD;
-            gridX = (getWidth() / 2) - (totalW / 2) + 130;
-            gridY = (getHeight() - totalH) / 2 + 10;
-            repaint();
-        });
-
-        requestFocusInWindow();
     }
 
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
+
         g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                 RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
 
-        if (bgImage != null)
+        if (bgImage != null) {
             g2.drawImage(bgImage, 0, 0, getWidth(), getHeight(), this);
-        else {
+        } else {
             g2.setColor(new Color(8, 28, 16));
             g2.fillRect(0, 0, getWidth(), getHeight());
         }
 
-        // Title
-        g2.setFont(new Font("Courier New", Font.BOLD, 42));
-        g2.setColor(Color.WHITE);
-        String title = "Select a Character";
-        g2.drawString(title,
-                (getWidth() - g2.getFontMetrics().stringWidth(title)) / 2,
-                gridY - 24);
+        drawTitle(g2);
+        drawSirKhai(g2);
+        drawGrid(g2);
+        drawHint(g2);
+    }
 
-        // Sir Khai
-        if (sirKhaiIdle != null) {
-            int khaiSize   = 300;
-            int totalGridH = ROWS * CELL_SIZE + (ROWS - 1) * CELL_PAD;
-            int khaiX = gridX - khaiSize - 50;
-            int khaiY = gridY + totalGridH / 2 - khaiSize / 2;
-            g2.drawImage(sirKhaiIdle.getImage(), khaiX, khaiY, khaiSize, khaiSize, this);
+    private void drawTitle(Graphics2D g2) {
+        g2.setFont(new Font("Courier New", Font.BOLD, 42));
+
+        if (pickingPlayer == 1) {
+            g2.setColor(new Color(100, 200, 255));
+        } else {
+            g2.setColor(new Color(255, 150, 100));
         }
 
-        // 3x3 grid
-        for (int i = 0; i < names.length; i++) {
+        String title = "PLAYER " + pickingPlayer;
+        int titleX   = (getWidth() - g2.getFontMetrics().stringWidth(title)) / 2;
+        g2.drawString(title, titleX, gridY - 24);
+    }
+
+    private void drawSirKhai(Graphics2D g2) {
+        if (sirKhaiIdle == null) return;
+
+        int sz         = 300;
+        int totalGridH = ROWS * CELL_SIZE + (ROWS - 1) * CELL_PAD;
+        int khaiX      = gridX - sz - 50;
+        int khaiY      = gridY + totalGridH / 2 - sz / 2;
+
+        g2.drawImage(sirKhaiIdle.getImage(), khaiX, khaiY, sz, sz, this);
+    }
+
+    private void drawGrid(Graphics2D g2) {
+        for (int i = 0; i < factory.getCount(); i++) {
             int col = i % COLS;
             int row = i / COLS;
             int cx  = gridX + col * (CELL_SIZE + CELL_PAD);
@@ -147,73 +164,132 @@ public class CharacterSelect extends JPanel implements KeyListener {
             g2.setColor(new Color(0, 0, 0, 130));
             g2.fillRect(cx, cy, CELL_SIZE, CELL_SIZE);
 
-            g2.setColor(i == selectedIndex ? Color.YELLOW : Color.WHITE);
-            g2.setStroke(new BasicStroke(i == selectedIndex ? 4 : 1));
+            drawCellBorder(g2, i, cx, cy);
+
+            ImageIcon gif = idleGifs.get(i);
+            if (gif != null) {
+                g2.drawImage(gif.getImage(), cx + 8, cy + 8,
+                        CELL_SIZE - 16, CELL_SIZE - 16, this);
+            }
+
+            drawSkillLabels(g2, i, cx, cy);
+            drawCharacterName(g2, i, cx, cy);
+        }
+    }
+
+    private void drawCellBorder(Graphics2D g2, int i, int cx, int cy) {
+        if (i == p1Index) {
+            g2.setColor(new Color(100, 255, 100));
+            g2.setStroke(new BasicStroke(4));
             g2.drawRect(cx, cy, CELL_SIZE, CELL_SIZE);
 
-            if (idleGifs[i] != null) {
-                int pad = 8;
-                g2.drawImage(idleGifs[i].getImage(),
-                        cx + pad, cy + pad,
-                        CELL_SIZE - pad * 2, CELL_SIZE - pad * 2, this);
-            }
+            g2.setFont(new Font("Courier New", Font.BOLD, 11));
+            g2.drawString("P1", cx + CELL_SIZE - 24, cy + 16);
 
-            if (walkSheets[i] == null) {
-                g2.setFont(new Font("Courier New", Font.PLAIN, 10));
-                g2.setColor(new Color(255, 200, 0));
-                g2.drawString("Wlay lakaw", cx + 4, cy + CELL_SIZE - 6);
+        } else if (i == selectedIndex) {
+            if (pickingPlayer == 1) {
+                g2.setColor(new Color(100, 200, 255));
+            } else {
+                g2.setColor(new Color(255, 150, 100));
             }
+            g2.setStroke(new BasicStroke(4));
+            g2.drawRect(cx, cy, CELL_SIZE, CELL_SIZE);
 
-            g2.setFont(new Font("Courier New", Font.BOLD, 14));
-            g2.setColor(i == selectedIndex ? Color.YELLOW : Color.WHITE);
-            String n = names[i];
-            g2.drawString(n,
-                    cx + (CELL_SIZE - g2.getFontMetrics().stringWidth(n)) / 2,
-                    cy + CELL_SIZE + 22);
+        } else {
+            g2.setColor(Color.WHITE);
+            g2.setStroke(new BasicStroke(1));
+            g2.drawRect(cx, cy, CELL_SIZE, CELL_SIZE);
+        }
+    }
+
+    private void drawSkillLabels(Graphics2D g2, int i, int cx, int cy) {
+        g2.setFont(new Font("Courier New", Font.BOLD, 9));
+        int labelY = cy + CELL_SIZE - 18;
+
+        if (factory.getSkill1Sheet(i) != null) {
+            g2.setColor(new Color(100, 255, 100));
+            g2.drawString("Skill1", cx + 4, labelY);
+        } else {
+            g2.setColor(new Color(255, 80, 80));
+            g2.drawString("No Skill1", cx + 4, labelY);
         }
 
-        /*hint
+        if (factory.getSkill2Sheet(i) != null) {
+            g2.setColor(new Color(100, 255, 100));
+            g2.drawString("Skill2", cx + 4, labelY + 12);
+        } else {
+            g2.setColor(new Color(255, 80, 80));
+            g2.drawString("No Skill2", cx + 4, labelY + 12);
+        }
+
+        if (factory.getWalkSheet(i) == null) {
+            g2.setColor(new Color(255, 200, 0));
+            g2.drawString("No Walk", cx + 4, labelY - 10);
+        }
+    }
+
+    private void drawCharacterName(Graphics2D g2, int i, int cx, int cy) {
+        g2.setFont(new Font("Courier New", Font.BOLD, 14));
+
+        if (i == selectedIndex) {
+            g2.setColor(Color.YELLOW);
+        } else {
+            g2.setColor(Color.WHITE);
+        }
+
+        String name  = factory.getName(i);
+        int nameX    = cx + (CELL_SIZE - g2.getFontMetrics().stringWidth(name)) / 2;
+        g2.drawString(name, nameX, cy + CELL_SIZE + 22);
+    }
+
+    private void drawHint(Graphics2D g2) {
         g2.setFont(new Font("Courier New", Font.PLAIN, 18));
         g2.setColor(Color.WHITE);
-        String hint = "Arrow Keys / WASD to navigate     ENTER to confirm";
-        g2.drawString(hint,
-                (getWidth() - g2.getFontMetrics().stringWidth(hint)) / 2,
-                getHeight() - 30);*/
+        String hint  = "ENTER to confirm";
+        int hintX    = (getWidth() - g2.getFontMetrics().stringWidth(hint)) / 2;
+        g2.drawString(hint, hintX, getHeight() - 30);
     }
 
     @Override
     public void keyPressed(KeyEvent e) {
-        switch (e.getKeyCode()) {
-            case KeyEvent.VK_RIGHT: case KeyEvent.VK_D:
-                if (selectedIndex % COLS < COLS - 1) selectedIndex++; break;
-            case KeyEvent.VK_LEFT:  case KeyEvent.VK_A:
-                if (selectedIndex % COLS > 0) selectedIndex--;         break;
-            case KeyEvent.VK_DOWN:  case KeyEvent.VK_S:
-                if (selectedIndex + COLS < names.length) selectedIndex += COLS; break;
-            case KeyEvent.VK_UP:    case KeyEvent.VK_W:
-                if (selectedIndex - COLS >= 0) selectedIndex -= COLS;  break;
-            case KeyEvent.VK_ENTER:
-                launchGame(); break;
+        int key = e.getKeyCode();
+
+        if (key == KeyEvent.VK_RIGHT || key == KeyEvent.VK_D) {
+            if (selectedIndex % COLS < COLS - 1) selectedIndex++;
+        } else if (key == KeyEvent.VK_LEFT || key == KeyEvent.VK_A) {
+            if (selectedIndex % COLS > 0) selectedIndex--;
+        } else if (key == KeyEvent.VK_DOWN || key == KeyEvent.VK_S) {
+            if (selectedIndex + COLS < factory.getCount()) selectedIndex += COLS;
+        } else if (key == KeyEvent.VK_UP || key == KeyEvent.VK_W) {
+            if (selectedIndex - COLS >= 0) selectedIndex -= COLS;
+        } else if (key == KeyEvent.VK_ENTER) {
+            confirmSelection();
         }
+
         repaint();
     }
 
-    private void launchGame() {
-        window.dispose();
+    private void confirmSelection() {
+        if (pickingPlayer == 1) {
+            p1Index       = selectedIndex;
+            pickingPlayer = 2;
+            selectedIndex = 0;
 
-        Character chosen = new Character(
-                walkSheets[selectedIndex],
-                allFrameRegions[selectedIndex],
-                sheetHeights[selectedIndex],
-                128, 280,
-                bottomPadding[selectedIndex],
-                idleGifPaths[selectedIndex],
-                getClass()
-        );
+            if (selectedIndex == p1Index) selectedIndex = 1;
 
-        new TestWalkPanel(chosen);
+        } else {
+            window.dispose();
+
+            Character p1 = factory.buildCharacter(p1Index, getClass());
+            Character p2 = factory.buildCharacter(selectedIndex, getClass());
+
+            String p1HeadPath = factory.getHeadPath(p1Index);
+            String p2HeadPath = factory.getHeadPath(selectedIndex);
+
+            new BattlePanel(p1, p2, p1HeadPath, p2HeadPath, getClass());
+        }
     }
 
     @Override public void keyReleased(KeyEvent e) {}
-    @Override public void keyTyped(KeyEvent e) {}
+    @Override public void keyTyped(KeyEvent e)   {}
 }

@@ -5,7 +5,9 @@ import entities.CharacterFactory;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import javax.imageio.ImageIO;
 
 public class CharacterSelect extends JPanel implements KeyListener {
 
@@ -14,6 +16,11 @@ public class CharacterSelect extends JPanel implements KeyListener {
     private ImageIcon sirKhaiIdle;
     private CharacterFactory factory;
     private ArrayList<ImageIcon> idleGifs;
+
+    // Frame images for cell borders
+    private BufferedImage goldFrame;   // unselected cells
+    private BufferedImage blueFrame;   // P1 selecting / P1 already picked
+    private BufferedImage redFrame;    // P2 selecting
 
     private int pickingPlayer;
     private int p1Index;
@@ -39,6 +46,7 @@ public class CharacterSelect extends JPanel implements KeyListener {
         selectedIndex = 0;
 
         loadBackground();
+        loadFrames();
         loadSirKhai();
         loadAllIdleGifs();
         setFocusable(true);
@@ -59,8 +67,8 @@ public class CharacterSelect extends JPanel implements KeyListener {
         int sw = getWidth();
         int sh = getHeight();
 
-        cellSize     = (int)(sh * 0.18);
-        cellPad      = (int)(sw * 0.03);
+        cellSize      = (int)(sh * 0.18);
+        cellPad       = (int)(sw * 0.03);
         titleFontSize = Math.max(18, (int)(sh * 0.045));
         nameFontSize  = Math.max(10, (int)(sh * 0.018));
         hintFontSize  = Math.max(10, (int)(sh * 0.016));
@@ -81,6 +89,20 @@ public class CharacterSelect extends JPanel implements KeyListener {
         try {
             bgImage = new ImageIcon(getClass().getResource("/backgrounds/background.png")).getImage();
         } catch (Exception e) { System.out.println("Background not found"); }
+    }
+
+    private void loadFrames() {
+        try {
+            goldFrame = ImageIO.read(getClass().getResource("/ui/v1gold_frame.png"));
+        } catch (Exception e) { System.out.println("Gold frame not found"); }
+
+        try {
+            blueFrame = ImageIO.read(getClass().getResource("/ui/v1blueframe.png"));
+        } catch (Exception e) { System.out.println("Blue frame not found"); }
+
+        try {
+            redFrame = ImageIO.read(getClass().getResource("/ui/v2redframe.png"));
+        } catch (Exception e) { System.out.println("Red frame not found"); }
     }
 
     private void loadSirKhai() {
@@ -128,8 +150,12 @@ public class CharacterSelect extends JPanel implements KeyListener {
 
         if (cellSize == 0) calculateDimensions();
 
-        if (bgImage != null) g2.drawImage(bgImage, 0, 0, getWidth(), getHeight(), this);
-        else { g2.setColor(new Color(8, 28, 16)); g2.fillRect(0, 0, getWidth(), getHeight()); }
+        if (bgImage != null) {
+            g2.drawImage(bgImage, 0, 0, getWidth(), getHeight(), this);
+        } else {
+            g2.setColor(new Color(8, 28, 16));
+            g2.fillRect(0, 0, getWidth(), getHeight());
+        }
 
         drawTitle(g2);
         drawSirKhai(g2);
@@ -139,7 +165,11 @@ public class CharacterSelect extends JPanel implements KeyListener {
 
     private void drawTitle(Graphics2D g2) {
         g2.setFont(getSafeFont(Font.BOLD, titleFontSize));
-        g2.setColor(pickingPlayer == 1 ? new Color(100, 200, 255) : new Color(255, 150, 100));
+        if (pickingPlayer == 1) {
+            g2.setColor(new Color(100, 200, 255));
+        } else {
+            g2.setColor(new Color(255, 100, 100));
+        }
         String title = "PLAYER " + pickingPlayer + " - Select Your Character";
         int tx = (getWidth() - g2.getFontMetrics().stringWidth(title)) / 2;
         g2.drawString(title, tx, gridY - (int)(getHeight() * 0.02));
@@ -160,37 +190,66 @@ public class CharacterSelect extends JPanel implements KeyListener {
             int cx  = gridX + col * (cellSize + cellPad);
             int cy  = gridY + row * (cellSize + cellPad);
 
+            // Dark background behind each cell
             g2.setColor(new Color(0, 0, 0, 130));
             g2.fillRect(cx, cy, cellSize, cellSize);
-            drawCellBorder(g2, i, cx, cy);
 
+            // Draw character idle GIF inside cell
             ImageIcon gif = idleGifs.get(i);
             if (gif != null) {
                 int pad = (int)(cellSize * 0.05);
-                g2.drawImage(gif.getImage(), cx + pad, cy + pad, cellSize - pad * 2, cellSize - pad * 2, this);
+                g2.drawImage(gif.getImage(),
+                        cx + pad, cy + pad,
+                        cellSize - pad * 2, cellSize - pad * 2, this);
             }
 
+            // Draw skill labels on top of the GIF
             drawSkillLabels(g2, i, cx, cy);
+
+            // Draw frame image on top of everything in this cell
+            drawCellFrame(g2, i, cx, cy);
+
+            // Draw P1 tag if this slot is already taken by P1
+            if (i == p1Index) {
+                g2.setFont(getSafeFont(Font.BOLD, labelFontSize + 2));
+                g2.setColor(Color.WHITE);
+                String p1tag = "P1";
+                g2.drawString(p1tag,
+                        cx + cellSize - g2.getFontMetrics().stringWidth(p1tag) - 4,
+                        cy + labelFontSize + 4);
+            }
+
+            // Draw character name below cell
             drawCharacterName(g2, i, cx, cy);
         }
     }
 
-    private void drawCellBorder(Graphics2D g2, int i, int cx, int cy) {
-        float strokeWidth = Math.max(1.5f, getHeight() * 0.004f);
+    /**
+     * Draws the pixel frame over the cell.
+     * - Blue  : cell currently highlighted by P1 selector, OR already picked by P1
+     * - Red   : cell currently highlighted by P2 selector
+     * - Gold  : all other cells (idle/unselected)
+     */
+    private void drawCellFrame(Graphics2D g2, int i, int cx, int cy) {
+        BufferedImage frame;
+
         if (i == p1Index) {
-            g2.setColor(new Color(100, 255, 100));
-            g2.setStroke(new BasicStroke(strokeWidth * 2));
-            g2.drawRect(cx, cy, cellSize, cellSize);
-            g2.setFont(getSafeFont(Font.BOLD, labelFontSize + 2));
-            g2.drawString("P1", cx + cellSize - (int)(cellSize * 0.15), cy + (int)(cellSize * 0.12));
-        } else if (i == selectedIndex) {
-            g2.setColor(pickingPlayer == 1 ? new Color(100, 200, 255) : new Color(255, 150, 100));
-            g2.setStroke(new BasicStroke(strokeWidth * 2));
-            g2.drawRect(cx, cy, cellSize, cellSize);
+            // P1 already locked this in — always blue
+            frame = blueFrame;
+        } else if (i == selectedIndex && pickingPlayer == 1) {
+            // P1 is hovering here
+            frame = blueFrame;
+        } else if (i == selectedIndex && pickingPlayer == 2) {
+            // P2 is hovering here
+            frame = redFrame;
         } else {
-            g2.setColor(Color.WHITE);
-            g2.setStroke(new BasicStroke(1));
-            g2.drawRect(cx, cy, cellSize, cellSize);
+            // Normal unselected cell
+            frame = goldFrame;
+        }
+
+        if (frame != null) {
+            // Draw the frame image scaled to fit the cell exactly
+            g2.drawImage(frame, cx, cy, cellSize, cellSize, this);
         }
     }
 
@@ -222,7 +281,11 @@ public class CharacterSelect extends JPanel implements KeyListener {
 
     private void drawCharacterName(Graphics2D g2, int i, int cx, int cy) {
         g2.setFont(getSafeFont(Font.BOLD, nameFontSize));
-        g2.setColor(i == selectedIndex ? Color.YELLOW : Color.WHITE);
+        if (i == selectedIndex) {
+            g2.setColor(Color.YELLOW);
+        } else {
+            g2.setColor(Color.WHITE);
+        }
         String name = factory.getName(i);
         int nx = cx + (cellSize - g2.getFontMetrics().stringWidth(name)) / 2;
         g2.drawString(name, nx, cy + cellSize + nameFontSize + (int)(getHeight() * 0.006));
@@ -231,7 +294,7 @@ public class CharacterSelect extends JPanel implements KeyListener {
     private void drawHint(Graphics2D g2) {
         g2.setFont(getSafeFont(Font.PLAIN, hintFontSize));
         g2.setColor(Color.WHITE);
-        String hint = "ENTER to confirm";
+        String hint = "Arrow Keys / WASD to move   ENTER to confirm";
         int hx = (getWidth() - g2.getFontMetrics().stringWidth(hint)) / 2;
         g2.drawString(hint, hx, getHeight() - (int)(getHeight() * 0.02));
     }
@@ -265,7 +328,10 @@ public class CharacterSelect extends JPanel implements KeyListener {
             int sh = getHeight();
             Character p1 = factory.buildCharacter(p1Index, getClass(), sw, sh);
             Character p2 = factory.buildCharacter(selectedIndex, getClass(), sw, sh);
-            new BattlePanel(p1, p2, factory.getHeadPath(p1Index), factory.getHeadPath(selectedIndex), getClass());
+            new BattlePanel(p1, p2,
+                    factory.getHeadPath(p1Index),
+                    factory.getHeadPath(selectedIndex),
+                    getClass());
         }
     }
 

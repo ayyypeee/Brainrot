@@ -9,27 +9,18 @@ import javax.swing.ImageIcon;
 
 public class Character extends GameEntity {
 
-    private ArrayList<BufferedImage> walkFramesRight;
     private BufferedImage idleFrameRight;
-    private BufferedImage currentFrame;
-    private ImageIcon idleGif;
-
-    private int walkFrameIndex;
-    private int walkAnimTick;
-    private boolean walkForward;
-    private final int WALK_ANIM_SPEED = 8;
+    private BufferedImage idleFrameLeft;
+    private ImageIcon     idleGif;
 
     private SkillData skill1;
     private SkillData skill2;
 
-    public boolean facingRight;
-    public boolean movingLeft;
-    public boolean movingRight;
+    public boolean facingRight = true;
 
-    private int sheetHeight;
-    private int bottomPadding;
-    private boolean hasPNG;
-    private int storedScreenH;
+    private final int sheetHeight;
+    private final int bottomPadding;
+    private boolean   hasPNG;
 
     public Character(String sheetPath, int[][] frameRegions, int sheetHeight,
                      int charW, int charH, int bottomPad,
@@ -39,54 +30,51 @@ public class Character extends GameEntity {
                      Class<?> loader) {
 
         super(0, 0, charW, charH, 5);
-
-        this.sheetHeight   = (sheetHeight > 0) ? sheetHeight : charH;
+        this.sheetHeight   = sheetHeight > 0 ? sheetHeight : charH;
         this.bottomPadding = bottomPad;
-        this.storedScreenH = 600;
-        this.walkFramesRight = new ArrayList<>();
-        this.walkFrameIndex  = 1;
-        this.walkAnimTick    = 0;
-        this.walkForward     = true;
-        this.hasPNG          = false;
-        this.facingRight     = true;
-        this.movingLeft      = false;
-        this.movingRight     = false;
 
-        if (sheetPath != null) loadWalkSheet(sheetPath, frameRegions, loader);
+        if (sheetPath != null) loadIdleFrame(sheetPath, frameRegions, loader);
         loadIdleGif(idleGifPath, loader);
-        if (sk1Sheet != null && sk1Regions != null) skill1 = loadSkill(sk1Sheet, sk1Regions, sk1H, sk1Pad, loader);
-        if (sk2Sheet != null && sk2Regions != null) skill2 = loadSkill(sk2Sheet, sk2Regions, sk2H, sk2Pad, loader);
+        if (sk1Sheet != null && sk1Regions != null)
+            skill1 = loadSkill(sk1Sheet, sk1Regions, sk1H, sk1Pad, loader);
+        if (sk2Sheet != null && sk2Regions != null)
+            skill2 = loadSkill(sk2Sheet, sk2Regions, sk2H, sk2Pad, loader);
     }
 
-    private void loadWalkSheet(String path, int[][] regions, Class<?> loader) {
+    private void loadIdleFrame(String path, int[][] regions, Class<?> loader) {
         try {
             BufferedImage sheet = ImageIO.read(loader.getResource(path));
-            for (int i = 0; i < regions.length; i++) {
-                int fw = regions[i][1] - regions[i][0] + 1;
-                walkFramesRight.add(sheet.getSubimage(regions[i][0], 0, fw, sheetHeight));
-            }
-            idleFrameRight = walkFramesRight.get(0);
-            currentFrame   = idleFrameRight;
-            hasPNG         = true;
+            int fw = regions[0][1] - regions[0][0] + 1;
+            idleFrameRight = sheet.getSubimage(regions[0][0], 0, fw, sheetHeight);
+
+            idleFrameLeft = new BufferedImage(fw, sheetHeight, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g2 = idleFrameLeft.createGraphics();
+            g2.drawImage(idleFrameRight, fw, 0, -fw, sheetHeight, null);
+            g2.dispose();
+
+            hasPNG = true;
         } catch (Exception e) {
-            System.out.println("Walk sheet not found: " + path);
-            hasPNG = false;
+            System.out.println("Idle frame not found: " + path);
         }
     }
 
     private void loadIdleGif(String path, Class<?> loader) {
         if (path == null) return;
-        try { idleGif = new ImageIcon(loader.getResource(path)); }
-        catch (Exception e) { System.out.println("Idle GIF not found: " + path); }
+        try {
+            idleGif = new ImageIcon(loader.getResource(path));
+        } catch (Exception e) {
+            System.out.println("Idle GIF not found: " + path);
+        }
     }
 
-    private SkillData loadSkill(String path, int[][] regions, int sheetH, int botPad, Class<?> loader) {
+    private SkillData loadSkill(String path, int[][] regions,
+                                int sheetH, int botPad, Class<?> loader) {
         try {
             BufferedImage sheet = ImageIO.read(loader.getResource(path));
             ArrayList<BufferedImage> frames = new ArrayList<>();
-            for (int i = 0; i < regions.length; i++) {
-                int fw = regions[i][1] - regions[i][0] + 1;
-                frames.add(sheet.getSubimage(regions[i][0], 0, fw, sheetH));
+            for (int[] region : regions) {
+                int fw = region[1] - region[0] + 1;
+                frames.add(sheet.getSubimage(region[0], 0, fw, sheetH));
             }
             return new SkillData(frames, 10, botPad, sheetH);
         } catch (Exception e) {
@@ -100,35 +88,33 @@ public class Character extends GameEntity {
     }
 
     public void placeAtBottom(int screenW, int screenH) {
-        storedScreenH = screenH;
         x = screenW / 2 - width / 2;
-        int walkOffset = (int)(height * (double) bottomPadding / sheetHeight);
-        y = screenH - height + walkOffset;
+        int offset = (int)(height * (double) bottomPadding / sheetHeight);
+        y = screenH - height + offset;
 
         if (skill1 != null) {
-            int offset = (int)(height * (double) skill1.getBottomPadding() / skill1.getSheetHeight());
-            skill1.setDrawY(screenH - height + offset);
+            int off = (int)(height * (double) skill1.getBottomPadding() / skill1.getSheetHeight());
+            skill1.setDrawY(screenH - height + off);
         }
         if (skill2 != null) {
-            int offset = (int)(height * (double) skill2.getBottomPadding() / skill2.getSheetHeight());
-            skill2.setDrawY(screenH - height + offset);
+            int off = (int)(height * (double) skill2.getBottomPadding() / skill2.getSheetHeight());
+            skill2.setDrawY(screenH - height + off);
         }
     }
 
     public void triggerSkill1() {
-        if (skill1 == null) return;
-        if (isAnyCastingSkill()) return;
+        if (skill1 == null || isAnyCastingSkill()) return;
         skill1.activate();
     }
 
     public void triggerSkill2() {
-        if (skill2 == null) return;
-        if (isAnyCastingSkill()) return;
+        if (skill2 == null || isAnyCastingSkill()) return;
         skill2.activate();
     }
 
     public boolean isAnyCastingSkill() {
-        return (skill1 != null && skill1.isActive()) || (skill2 != null && skill2.isActive());
+        return (skill1 != null && skill1.isActive())
+                || (skill2 != null && skill2.isActive());
     }
 
     public boolean hasSkill1()       { return skill1 != null; }
@@ -138,53 +124,22 @@ public class Character extends GameEntity {
 
     @Override
     public void update() {
-        if (!isAnyCastingSkill()) {
-            if (movingRight) x += speed;
-            if (movingLeft)  x -= speed;
-        }
         if (skill1 != null && skill1.isActive()) skill1.tick();
         if (skill2 != null && skill2.isActive()) skill2.tick();
-        if (hasPNG && !isAnyCastingSkill()) updateWalkAnimation();
-    }
-
-    private void updateWalkAnimation() {
-        boolean isMoving = movingLeft || movingRight;
-        if (isMoving) {
-            walkAnimTick++;
-            if (walkAnimTick >= WALK_ANIM_SPEED) {
-                walkAnimTick = 0;
-                if (walkForward) {
-                    walkFrameIndex++;
-                    if (walkFrameIndex >= walkFramesRight.size() - 1) {
-                        walkFrameIndex = walkFramesRight.size() - 1;
-                        walkForward = false;
-                    }
-                } else {
-                    walkFrameIndex--;
-                    if (walkFrameIndex <= 1) {
-                        walkFrameIndex = 1;
-                        walkForward = true;
-                    }
-                }
-            }
-        } else {
-            walkAnimTick   = 0;
-            walkFrameIndex = 0;
-            walkForward    = true;
-        }
-        currentFrame = walkFramesRight.get(walkFrameIndex);
     }
 
     @Override
     public void draw(Graphics g, ImageObserver observer) {
         Graphics2D g2 = (Graphics2D) g;
+
         if (skill1 != null && skill1.isActive()) { drawSkillFrame(g2, skill1, observer); return; }
         if (skill2 != null && skill2.isActive()) { drawSkillFrame(g2, skill2, observer); return; }
-        if (hasPNG && currentFrame != null) {
-            if (facingRight) g2.drawImage(currentFrame, x, y, width, height, observer);
-            else             g2.drawImage(currentFrame, x + width, y, -width, height, observer);
-            return;
+
+        if (hasPNG) {
+            BufferedImage frame = facingRight ? idleFrameRight : idleFrameLeft;
+            if (frame != null) { g2.drawImage(frame, x, y, width, height, observer); return; }
         }
+
         if (idleGif != null) {
             if (facingRight) g2.drawImage(idleGif.getImage(), x, y, width, height, observer);
             else             g2.drawImage(idleGif.getImage(), x + width, y, -width, height, observer);

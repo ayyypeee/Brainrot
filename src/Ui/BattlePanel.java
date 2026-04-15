@@ -27,8 +27,6 @@ public class BattlePanel extends JPanel implements KeyListener {
     private boolean gameOver;
     private String winner;
 
-    private boolean p1Left, p1Right, p2Left, p2Right;
-
     private int headSize;
     private int heartSize;
     private int heartGap;
@@ -42,13 +40,13 @@ public class BattlePanel extends JPanel implements KeyListener {
                        Class<?> loader) {
         this.p1 = p1;
         this.p2 = p2;
-        p1HP = MAX_HP; p2HP = MAX_HP;
+        p1HP = MAX_HP;
+        p2HP = MAX_HP;
         skillTurn = 1;
         skillUsedThisTurn = false;
         damageDealt = false;
         gameOver = false;
         winner = "";
-        p1Left = p1Right = p2Left = p2Right = false;
 
         loadBackground(loader);
         loadHeartSprite(loader);
@@ -61,7 +59,9 @@ public class BattlePanel extends JPanel implements KeyListener {
         addKeyListener(this);
 
         gameTimer = new Timer(16, new ActionListener() {
-            public void actionPerformed(ActionEvent e) { update(); }
+            public void actionPerformed(ActionEvent e) {
+                update();
+            }
         });
         gameTimer.start();
 
@@ -72,10 +72,15 @@ public class BattlePanel extends JPanel implements KeyListener {
                 calculateDimensions();
                 int w = getWidth();
                 int h = getHeight();
+
+                // Place both characters at bottom, facing each other
                 p1.placeAtBottom(w, h);
                 p2.placeAtBottom(w, h);
+
+                // P1 on left quarter, P2 on right quarter
                 p1.setX(w / 4 - p1.getWidth() / 2);
                 p2.setX(w * 3 / 4 - p2.getWidth() / 2);
+
                 p1.facingRight = true;
                 p2.facingRight = false;
             }
@@ -87,12 +92,12 @@ public class BattlePanel extends JPanel implements KeyListener {
     private void calculateDimensions() {
         int sw = getWidth();
         int sh = getHeight();
-        headSize       = (int)(sh * 0.07);
-        heartSize      = (int)(sh * 0.04);
-        heartGap       = Math.max(2, (int)(sw * 0.004));
-        topY           = (int)(sh * 0.018);
-        hudFontSize    = Math.max(12, (int)(sh * 0.022));
-        bottomFontSize = Math.max(10, (int)(sh * 0.016));
+        headSize         = (int)(sh * 0.07);
+        heartSize        = (int)(sh * 0.04);
+        heartGap         = Math.max(2, (int)(sw * 0.004));
+        topY             = (int)(sh * 0.018);
+        hudFontSize      = Math.max(12, (int)(sh * 0.022));
+        bottomFontSize   = Math.max(10, (int)(sh * 0.016));
         gameOverFontSize = Math.max(36, (int)(sh * 0.08));
     }
 
@@ -101,13 +106,15 @@ public class BattlePanel extends JPanel implements KeyListener {
     }
 
     private void loadBackground(Class<?> loader) {
-        try { bgImage = new ImageIcon(loader.getResource("/backgrounds/background.png")).getImage(); }
-        catch (Exception e) { System.out.println("BG not found"); }
+        try {
+            bgImage = new ImageIcon(loader.getResource("/backgrounds/background.png")).getImage();
+        } catch (Exception e) { System.out.println("BG not found"); }
     }
 
     private void loadHeartSprite(Class<?> loader) {
-        try { heartSprite = ImageIO.read(loader.getResource("/level_assets/heart sprite.png")); }
-        catch (Exception e) { System.out.println("Heart not found"); }
+        try {
+            heartSprite = ImageIO.read(loader.getResource("/level_assets/heart sprite.png"));
+        } catch (Exception e) { System.out.println("Heart not found"); }
     }
 
     private void loadHeadPortrait(String path, boolean isP1, Class<?> loader) {
@@ -120,62 +127,90 @@ public class BattlePanel extends JPanel implements KeyListener {
     }
 
     private void setupWindow() {
-        window = new JFrame("Human vs Brainrot");
+        window = new JFrame("Guardians of Sanity - BATTLE");
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         window.setUndecorated(true);
         window.add(this);
         GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
         GraphicsDevice gd = ge.getDefaultScreenDevice();
-        if (gd.isFullScreenSupported()) gd.setFullScreenWindow(window);
-        else { window.setExtendedState(JFrame.MAXIMIZED_BOTH); window.setVisible(true); }
+        if (gd.isFullScreenSupported()) {
+            gd.setFullScreenWindow(window);
+        } else {
+            window.setExtendedState(JFrame.MAXIMIZED_BOTH);
+            window.setVisible(true);
+        }
     }
 
     private void update() {
         if (gameOver) return;
 
-        p1.movingRight = p1Right; p1.movingLeft = p1Left;
-        p2.movingRight = p2Right; p2.movingLeft = p2Left;
-        if (p1Right) p1.facingRight = true;
-        if (p1Left)  p1.facingRight = false;
-        if (p2Right) p2.facingRight = true;
-        if (p2Left)  p2.facingRight = false;
-
         p1.update();
         p2.update();
 
+        // Deal damage when skill animation starts
         if (skillUsedThisTurn && !damageDealt) {
             if (skillTurn == 1 && (p1.isCastingSkill1() || p1.isCastingSkill2())) {
-                p2HP--; damageDealt = true; checkGameOver();
+                p2HP--;
+                damageDealt = true;
+                checkGameOver();
             }
             if (skillTurn == 2 && (p2.isCastingSkill1() || p2.isCastingSkill2())) {
-                p1HP--; damageDealt = true; checkGameOver();
+                p1HP--;
+                damageDealt = true;
+                checkGameOver();
             }
         }
 
+        // Advance turn when skill animation finishes
         if (skillUsedThisTurn && damageDealt) {
             boolean p1Done = !p1.isCastingSkill1() && !p1.isCastingSkill2();
             boolean p2Done = !p2.isCastingSkill1() && !p2.isCastingSkill2();
-            if (skillTurn == 1 && p1Done) { skillTurn = 2; skillUsedThisTurn = false; damageDealt = false; }
-            else if (skillTurn == 2 && p2Done) { skillTurn = 1; skillUsedThisTurn = false; damageDealt = false; }
+            if (skillTurn == 1 && p1Done) {
+                skillTurn = 2;
+                skillUsedThisTurn = false;
+                damageDealt = false;
+            } else if (skillTurn == 2 && p2Done) {
+                skillTurn = 1;
+                skillUsedThisTurn = false;
+                damageDealt = false;
+            }
         }
 
-        p1.setScreenBounds(getWidth());
-        p2.setScreenBounds(getWidth());
         repaint();
     }
 
     private void checkGameOver() {
-        if (p1HP <= 0) { p1HP = 0; gameOver = true; winner = "PLAYER 2 WINS!"; gameTimer.stop(); showGameOverDialog(); }
-        else if (p2HP <= 0) { p2HP = 0; gameOver = true; winner = "PLAYER 1 WINS!"; gameTimer.stop(); showGameOverDialog(); }
+        if (p1HP <= 0) {
+            p1HP = 0;
+            gameOver = true;
+            winner = "PLAYER 2 WINS!";
+            gameTimer.stop();
+            showGameOverDialog();
+        } else if (p2HP <= 0) {
+            p2HP = 0;
+            gameOver = true;
+            winner = "PLAYER 1 WINS!";
+            gameTimer.stop();
+            showGameOverDialog();
+        }
     }
 
     private void showGameOverDialog() {
         repaint();
         Timer t = new Timer(1500, new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                int choice = JOptionPane.showConfirmDialog(window, winner + "\n\nPlay again?", "Game Over", JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE);
-                if (choice == JOptionPane.YES_OPTION) { window.dispose(); new CharacterSelect(); }
-                else System.exit(0);
+                int choice = JOptionPane.showConfirmDialog(
+                        window,
+                        winner + "\n\nPlay again?",
+                        "Game Over",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.PLAIN_MESSAGE);
+                if (choice == JOptionPane.YES_OPTION) {
+                    window.dispose();
+                    new CharacterSelect();
+                } else {
+                    System.exit(0);
+                }
             }
         });
         t.setRepeats(false);
@@ -186,60 +221,88 @@ public class BattlePanel extends JPanel implements KeyListener {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
+                RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
         if (headSize == 0) calculateDimensions();
 
-        if (bgImage != null) g2.drawImage(bgImage, 0, 0, getWidth(), getHeight(), this);
-        else { g2.setColor(new Color(20, 40, 20)); g2.fillRect(0, 0, getWidth(), getHeight()); }
+        if (bgImage != null) {
+            g2.drawImage(bgImage, 0, 0, getWidth(), getHeight(), this);
+        } else {
+            g2.setColor(new Color(20, 40, 20));
+            g2.fillRect(0, 0, getWidth(), getHeight());
+        }
 
         p1.draw(g2, this);
         p2.draw(g2, this);
         drawHUD(g2);
-        if (gameOver) drawGameOverOverlay(g2);
+
+        if (gameOver) {
+            drawGameOverOverlay(g2);
+        }
     }
 
     private void drawHUD(Graphics2D g2) {
-        // P1 head
-        if (p1HeadImg != null) g2.drawImage(p1HeadImg, 10, topY, headSize, headSize, this);
-        else { g2.setColor(new Color(100, 200, 255)); g2.fillRect(10, topY, headSize, headSize); }
+        // P1 head portrait
+        if (p1HeadImg != null) {
+            g2.drawImage(p1HeadImg, 10, topY, headSize, headSize, this);
+        } else {
+            g2.setColor(new Color(100, 200, 255));
+            g2.fillRect(10, topY, headSize, headSize);
+        }
 
         // P1 hearts
         int hx1 = 10 + headSize + heartGap * 2;
         for (int i = 0; i < MAX_HP; i++) {
             int hx = hx1 + i * (heartSize + heartGap);
             int hy = topY + (headSize - heartSize) / 2;
-            if (i < p1HP && heartSprite != null) g2.drawImage(heartSprite, hx, hy, heartSize, heartSize, this);
-            else { g2.setColor(new Color(60, 0, 0)); g2.fillRect(hx, hy, heartSize, heartSize); }
+            if (i < p1HP && heartSprite != null) {
+                g2.drawImage(heartSprite, hx, hy, heartSize, heartSize, this);
+            } else {
+                g2.setColor(new Color(60, 0, 0));
+                g2.fillRect(hx, hy, heartSize, heartSize);
+            }
         }
 
-        // P2 head
+        // P2 head portrait
         int p2HeadX = getWidth() - headSize - 10;
-        if (p2HeadImg != null) g2.drawImage(p2HeadImg, p2HeadX, topY, headSize, headSize, this);
-        else { g2.setColor(new Color(255, 150, 100)); g2.fillRect(p2HeadX, topY, headSize, headSize); }
+        if (p2HeadImg != null) {
+            g2.drawImage(p2HeadImg, p2HeadX, topY, headSize, headSize, this);
+        } else {
+            g2.setColor(new Color(255, 150, 100));
+            g2.fillRect(p2HeadX, topY, headSize, headSize);
+        }
 
         // P2 hearts
         int hx2 = p2HeadX - heartGap * 2 - MAX_HP * (heartSize + heartGap);
         for (int i = 0; i < MAX_HP; i++) {
             int hx = hx2 + i * (heartSize + heartGap);
             int hy = topY + (headSize - heartSize) / 2;
-            if (i < p2HP && heartSprite != null) g2.drawImage(heartSprite, hx, hy, heartSize, heartSize, this);
-            else { g2.setColor(new Color(60, 0, 0)); g2.fillRect(hx, hy, heartSize, heartSize); }
+            if (i < p2HP && heartSprite != null) {
+                g2.drawImage(heartSprite, hx, hy, heartSize, heartSize, this);
+            } else {
+                g2.setColor(new Color(60, 0, 0));
+                g2.fillRect(hx, hy, heartSize, heartSize);
+            }
         }
 
-        // Turn indicator
+        // Turn indicator in the center
         g2.setFont(getSafeFont(Font.BOLD, hudFontSize));
         String turnText = skillTurn == 1 ? "P1 TURN" : "P2 TURN";
-        g2.setColor(skillTurn == 1 ? new Color(100, 200, 255) : new Color(255, 150, 100));
+        g2.setColor(skillTurn == 1 ? new Color(100, 200, 255) : new Color(255, 100, 100));
         int tx = (getWidth() - g2.getFontMetrics().stringWidth(turnText)) / 2;
         g2.drawString(turnText, tx, topY + headSize / 2 + hudFontSize / 2);
 
-        // Bottom controls
+        // Bottom controls — skills only, no movement
         g2.setFont(getSafeFont(Font.PLAIN, bottomFontSize));
         g2.setColor(Color.WHITE);
-        g2.drawString("P1: A/D move  E/R skill", (int)(getWidth() * 0.01), getHeight() - (int)(getHeight() * 0.015));
-        String p2ctrl = "P2: ←/→ move  , . skill";
-        g2.drawString(p2ctrl, getWidth() - g2.getFontMetrics().stringWidth(p2ctrl) - (int)(getWidth() * 0.01), getHeight() - (int)(getHeight() * 0.015));
+        g2.drawString("P1:  E = Skill 1    R = Skill 2",
+                (int)(getWidth() * 0.01),
+                getHeight() - (int)(getHeight() * 0.015));
+        String p2ctrl = "P2:  , = Skill 1    . = Skill 2";
+        g2.drawString(p2ctrl,
+                getWidth() - g2.getFontMetrics().stringWidth(p2ctrl) - (int)(getWidth() * 0.01),
+                getHeight() - (int)(getHeight() * 0.015));
     }
 
     private void drawGameOverOverlay(Graphics2D g2) {
@@ -255,29 +318,38 @@ public class BattlePanel extends JPanel implements KeyListener {
     public void keyPressed(KeyEvent e) {
         if (gameOver) return;
         int key = e.getKeyCode();
-        if      (key == KeyEvent.VK_A)      { p1Left  = true; }
-        else if (key == KeyEvent.VK_D)      { p1Right = true; }
-        else if (key == KeyEvent.VK_E) {
-            if (skillTurn == 1 && !skillUsedThisTurn && !p1.isAnyCastingSkill() && p1.hasSkill1()) { p1.triggerSkill1(); skillUsedThisTurn = true; }
+
+        // P1 skills only — E and R
+        if (key == KeyEvent.VK_E) {
+            if (skillTurn == 1 && !skillUsedThisTurn
+                    && !p1.isAnyCastingSkill() && p1.hasSkill1()) {
+                p1.triggerSkill1();
+                skillUsedThisTurn = true;
+            }
         } else if (key == KeyEvent.VK_R) {
-            if (skillTurn == 1 && !skillUsedThisTurn && !p1.isAnyCastingSkill() && p1.hasSkill2()) { p1.triggerSkill2(); skillUsedThisTurn = true; }
-        } else if (key == KeyEvent.VK_LEFT)  { p2Left  = true; }
-        else if (key == KeyEvent.VK_RIGHT)   { p2Right = true; }
+            if (skillTurn == 1 && !skillUsedThisTurn
+                    && !p1.isAnyCastingSkill() && p1.hasSkill2()) {
+                p1.triggerSkill2();
+                skillUsedThisTurn = true;
+            }
+        }
+
+        // P2 skills only — comma and period
         else if (key == KeyEvent.VK_COMMA) {
-            if (skillTurn == 2 && !skillUsedThisTurn && !p2.isAnyCastingSkill() && p2.hasSkill1()) { p2.triggerSkill1(); skillUsedThisTurn = true; }
+            if (skillTurn == 2 && !skillUsedThisTurn
+                    && !p2.isAnyCastingSkill() && p2.hasSkill1()) {
+                p2.triggerSkill1();
+                skillUsedThisTurn = true;
+            }
         } else if (key == KeyEvent.VK_PERIOD) {
-            if (skillTurn == 2 && !skillUsedThisTurn && !p2.isAnyCastingSkill() && p2.hasSkill2()) { p2.triggerSkill2(); skillUsedThisTurn = true; }
+            if (skillTurn == 2 && !skillUsedThisTurn
+                    && !p2.isAnyCastingSkill() && p2.hasSkill2()) {
+                p2.triggerSkill2();
+                skillUsedThisTurn = true;
+            }
         }
     }
 
-    @Override
-    public void keyReleased(KeyEvent e) {
-        int key = e.getKeyCode();
-        if (key == KeyEvent.VK_A)     p1Left  = false;
-        if (key == KeyEvent.VK_D)     p1Right = false;
-        if (key == KeyEvent.VK_LEFT)  p2Left  = false;
-        if (key == KeyEvent.VK_RIGHT) p2Right = false;
-    }
-
-    @Override public void keyTyped(KeyEvent e) {}
+    @Override public void keyReleased(KeyEvent e) {}
+    @Override public void keyTyped(KeyEvent e)    {}
 }

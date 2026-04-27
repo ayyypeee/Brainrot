@@ -3,24 +3,21 @@ package entities;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 
+
 public class SkillData {
 
     private final ArrayList<BufferedImage> frames;
     private final int animSpeed;
-    private final int bottomPadding;
-    private final int sheetHeight;
 
-    private int  currentFrameIndex;
-    private int  animTick;
+    private int     currentFrameIndex;
+    private int     animTick;
     private boolean active;
-    private int  drawY;
 
-    public SkillData(ArrayList<BufferedImage> frames, int animSpeed,
-                     int bottomPadding, int sheetHeight) {
-        this.frames        = frames;
-        this.animSpeed     = animSpeed;
-        this.bottomPadding = bottomPadding;
-        this.sheetHeight   = sheetHeight;
+    private int drawY;
+
+    public SkillData(ArrayList<BufferedImage> frames, int animSpeed) {
+        this.frames    = frames;
+        this.animSpeed = animSpeed;
     }
 
     public void activate() {
@@ -41,20 +38,16 @@ public class SkillData {
         if (animTick >= animSpeed) {
             animTick = 0;
             currentFrameIndex++;
-            if (currentFrameIndex >= frames.size()) {
-                deactivate();
-            }
+            if (currentFrameIndex >= frames.size()) deactivate();
         }
     }
 
     public BufferedImage getCurrentFrame() {
-        int i = Math.min(currentFrameIndex, frames.size() - 1);
-        return frames.get(i);
+        if (frames.isEmpty()) return null;
+        return frames.get(Math.min(currentFrameIndex, frames.size() - 1));
     }
 
-    public boolean isActive()        { return active; }
-    public int getBottomPadding()    { return bottomPadding; }
-    public int getSheetHeight()      { return sheetHeight; }
-    public void setDrawY(int drawY)  { this.drawY = drawY; }
-    public int  getDrawY()           { return drawY; }
+    public boolean isActive()       { return active; }
+    public void    setDrawY(int y)  { drawY = y; }
+    public int     getDrawY()       { return drawY; }
 }

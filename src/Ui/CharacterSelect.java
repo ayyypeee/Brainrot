@@ -11,105 +11,55 @@ import javax.imageio.ImageIO;
 
 public class CharacterSelect extends JPanel implements KeyListener {
 
-    private JFrame window;
-    private Image bgImage;
-    private ImageIcon sirKhaiIdle;
-    private CharacterFactory factory;
+    public enum Mode { PVP, VS_AI, ARCADE }
+
+    private final Mode mode;
+
+    private int pickingPlayer = 1;
+    private int p1Index       = -1;
+    private int playerIndex   = -1;
+    private int selectedIndex =  0;
+
+    private JFrame               window;
+    private Image                bgImage;
+    private CharacterFactory     factory;
     private ArrayList<ImageIcon> idleGifs;
+    private BufferedImage        goldFrame, blueFrame, redFrame;
 
-    // Frame images for cell borders
-    private BufferedImage goldFrame;   // unselected cells
-    private BufferedImage blueFrame;   // P1 selecting / P1 already picked
-    private BufferedImage redFrame;    // P2 selecting
+    private static final int COLS = 3;
+    private static final int ROWS = 3;
+    private int cellSize, cellPad, gridX, gridY;
+    private int titleFontSize, nameFontSize, hintFontSize, labelFontSize;
 
-    private int pickingPlayer;
-    private int p1Index;
-    private int selectedIndex;
-
-    private final int COLS = 3;
-    private final int ROWS = 3;
-
-    private int cellSize;
-    private int cellPad;
-    private int gridX;
-    private int gridY;
-    private int titleFontSize;
-    private int nameFontSize;
-    private int hintFontSize;
-    private int labelFontSize;
-    private int sirKhaiSize;
-
-    public CharacterSelect() {
-        factory       = new CharacterFactory();
-        pickingPlayer = 1;
-        p1Index       = -1;
-        selectedIndex = 0;
-
+    // ── Constructor ───────────────────────────────────────────────────────────
+    public CharacterSelect(Mode mode) {
+        this.mode = mode;
+        factory   = new CharacterFactory();
         loadBackground();
         loadFrames();
-        loadSirKhai();
         loadAllIdleGifs();
         setFocusable(true);
         addKeyListener(this);
         setupWindow();
-
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                calculateDimensions();
-                repaint();
-            }
-        });
-
+        SwingUtilities.invokeLater(() -> { calculateDimensions(); repaint(); });
         requestFocusInWindow();
     }
 
-    private void calculateDimensions() {
-        int sw = getWidth();
-        int sh = getHeight();
+    public CharacterSelect() { this(Mode.PVP); }
 
-        cellSize      = (int)(sh * 0.18);
-        cellPad       = (int)(sw * 0.03);
-        titleFontSize = Math.max(18, (int)(sh * 0.045));
-        nameFontSize  = Math.max(10, (int)(sh * 0.018));
-        hintFontSize  = Math.max(10, (int)(sh * 0.016));
-        labelFontSize = Math.max(7,  (int)(sh * 0.010));
-        sirKhaiSize   = (int)(sh * 0.35);
-
-        int totalW = COLS * cellSize + (COLS - 1) * cellPad;
-        int totalH = ROWS * cellSize + (ROWS - 1) * cellPad;
-        gridX = (sw / 2) - (totalW / 2) + (int)(sw * 0.13);
-        gridY = (sh - totalH) / 2 + (int)(sh * 0.01);
-    }
-
-    private Font getSafeFont(int style, int size) {
-        return new Font(Font.MONOSPACED, style, size);
-    }
-
+    // ── Asset Loading ─────────────────────────────────────────────────────────
     private void loadBackground() {
-        try {
-            bgImage = new ImageIcon(getClass().getResource("/backgrounds/background.png")).getImage();
-        } catch (Exception e) { System.out.println("Background not found"); }
+        try { bgImage = new ImageIcon(getClass().getResource("/backgrounds/background.png")).getImage(); }
+        catch (Exception e) { System.out.println("Background not found"); }
     }
 
     private void loadFrames() {
-        try {
-            goldFrame = ImageIO.read(getClass().getResource("/ui/v1gold_frame.png"));
-        } catch (Exception e) { System.out.println("Gold frame not found"); }
-
-        try {
-            blueFrame = ImageIO.read(getClass().getResource("/ui/v1blueframe.png"));
-        } catch (Exception e) { System.out.println("Blue frame not found"); }
-
-        try {
-            redFrame = ImageIO.read(getClass().getResource("/ui/v2redframe.png"));
-        } catch (Exception e) { System.out.println("Red frame not found"); }
-    }
-
-    private void loadSirKhai() {
-        try {
-            sirKhaiIdle = new ImageIcon(getClass().getResource("/characters/idle_gif/v1_sirkhai_moving_idle.gif"));
-            sirKhaiIdle.setImageObserver(this);
-        } catch (Exception e) { System.out.println("Sir Khai GIF not found"); }
+        try { goldFrame = ImageIO.read(getClass().getResource("/ui/v1gold frame.png")); }
+        catch (Exception e) { System.out.println("Gold frame not found"); }
+        try { blueFrame = ImageIO.read(getClass().getResource("/ui/v1blueframe.png")); }
+        catch (Exception e) { System.out.println("Blue frame not found"); }
+        try { redFrame  = ImageIO.read(getClass().getResource("/ui/v2redframe.png")); }
+        catch (Exception e) { System.out.println("Red frame not found"); }
     }
 
     private void loadAllIdleGifs() {
@@ -119,82 +69,116 @@ public class CharacterSelect extends JPanel implements KeyListener {
                 ImageIcon gif = new ImageIcon(getClass().getResource(factory.getIdleGifPath(i)));
                 gif.setImageObserver(this);
                 idleGifs.add(gif);
-            } catch (Exception e) {
-                idleGifs.add(null);
-            }
+            } catch (Exception e) { idleGifs.add(null); }
         }
     }
 
+    // ── Layout ────────────────────────────────────────────────────────────────
+    private void calculateDimensions() {
+        int sw = getWidth(), sh = getHeight();
+        cellSize      = (int)(sh * 0.18);
+        cellPad       = (int)(sw * 0.03);
+        titleFontSize = Math.max(18, (int)(sh * 0.045));
+        nameFontSize  = Math.max(10, (int)(sh * 0.018));
+        hintFontSize  = Math.max(10, (int)(sh * 0.016));
+        labelFontSize = Math.max(7,  (int)(sh * 0.010));
+
+        int totalW = COLS * cellSize + (COLS - 1) * cellPad;
+        int totalH = ROWS * cellSize + (ROWS - 1) * cellPad;
+        gridX = (sw - totalW) / 2;
+        gridY = (sh - totalH) / 2 + (int)(sh * 0.04);
+    }
+
+    private Font font(int style, int size) { return new Font(Font.MONOSPACED, style, size); }
+
     private void setupWindow() {
-        window = new JFrame("Human vs Brainrot");
+        String title;
+        switch (mode) {
+            case VS_AI:  title = "vs Computer"; break;
+            case ARCADE: title = "Arcade";      break;
+            default:     title = "Player vs Player"; break;
+        }
+        window = new JFrame(title);
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         window.setUndecorated(true);
         window.add(this);
-
-        GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-        GraphicsDevice gd = ge.getDefaultScreenDevice();
-        if (gd.isFullScreenSupported()) {
-            gd.setFullScreenWindow(window);
-        } else {
-            window.setExtendedState(JFrame.MAXIMIZED_BOTH);
-            window.setVisible(true);
-        }
+        GraphicsDevice gd = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+        if (gd.isFullScreenSupported()) gd.setFullScreenWindow(window);
+        else { window.setExtendedState(JFrame.MAXIMIZED_BOTH); window.setVisible(true); }
     }
 
+    // ── Painting ──────────────────────────────────────────────────────────────
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
+                RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         if (cellSize == 0) calculateDimensions();
 
-        if (bgImage != null) {
-            g2.drawImage(bgImage, 0, 0, getWidth(), getHeight(), this);
-        } else {
-            g2.setColor(new Color(8, 28, 16));
-            g2.fillRect(0, 0, getWidth(), getHeight());
+        int sw = getWidth(), sh = getHeight();
+
+        if (bgImage != null) g2.drawImage(bgImage, 0, 0, sw, sh, this);
+        else { g2.setColor(new Color(8, 28, 16)); g2.fillRect(0, 0, sw, sh); }
+
+        drawTitle(g2, sw, sh);
+        drawGrid(g2, sh);
+    }
+
+    private void drawTitle(Graphics2D g2, int sw, int sh) {
+        String line1, line2 = null;
+        Color color;
+
+        switch (mode) {
+            case PVP:
+                line1 = pickingPlayer == 1
+                        ? "PLAYER 1 Select Your Character"
+                        : "PLAYER 2 Select Your Character";
+                color = pickingPlayer == 1
+                        ? new Color(100, 200, 255)
+                        : new Color(255, 100, 100);
+                break;
+            case VS_AI:
+                if (playerIndex == -1) {
+                    line1 = "Select Your Character";
+                    color = new Color(100, 200, 255);
+                } else {
+                    line1 = "CHOOSE YOUR AI OPPONENT";
+                    color = new Color(255, 160, 80);
+                }
+                break;
+            default:
+                line1 = "Select Your Fighter";
+                color  = new Color(255, 200, 40);
+                break;
         }
 
-        drawTitle(g2);
-        drawSirKhai(g2);
-        drawGrid(g2);
-        drawHint(g2);
-    }
+        g2.setFont(font(Font.BOLD, titleFontSize));
+        int tx = sw / 2 - g2.getFontMetrics().stringWidth(line1) / 2;
+        int ty = gridY - (int)(sh * 0.04);
 
-    private void drawTitle(Graphics2D g2) {
-        g2.setFont(getSafeFont(Font.BOLD, titleFontSize));
-        if (pickingPlayer == 1) {
-            g2.setColor(new Color(100, 200, 255));
-        } else {
-            g2.setColor(new Color(255, 100, 100));
+        g2.setColor(new Color(0, 0, 0, 180));
+        g2.drawString(line1, tx + 2, ty + 2);
+        g2.setColor(color);
+        g2.drawString(line1, tx, ty);
+
+        if (line2 != null) {
+            g2.setFont(font(Font.PLAIN, hintFontSize + 2));
+            g2.setColor(new Color(210, 200, 150));
+            int sx = sw / 2 - g2.getFontMetrics().stringWidth(line2) / 2;
+            g2.drawString(line2, sx, ty + titleFontSize + 4);
         }
-        String title = "PLAYER " + pickingPlayer + " - Select Your Character";
-        int tx = (getWidth() - g2.getFontMetrics().stringWidth(title)) / 2;
-        g2.drawString(title, tx, gridY - (int)(getHeight() * 0.02));
     }
 
-    private void drawSirKhai(Graphics2D g2) {
-        if (sirKhaiIdle == null) return;
-        int totalGridH = ROWS * cellSize + (ROWS - 1) * cellPad;
-        int khaiX = gridX - sirKhaiSize - (int)(getWidth() * 0.03);
-        int khaiY = gridY + totalGridH / 2 - sirKhaiSize / 2;
-        g2.drawImage(sirKhaiIdle.getImage(), khaiX, khaiY, sirKhaiSize, sirKhaiSize, this);
-    }
-
-    private void drawGrid(Graphics2D g2) {
+    private void drawGrid(Graphics2D g2, int sh) {
         for (int i = 0; i < factory.getCount(); i++) {
             int col = i % COLS;
             int row = i / COLS;
             int cx  = gridX + col * (cellSize + cellPad);
             int cy  = gridY + row * (cellSize + cellPad);
 
-            // Dark background behind each cell
-            g2.setColor(new Color(0, 0, 0, 130));
-            g2.fillRect(cx, cy, cellSize, cellSize);
-
-            // Draw character idle GIF inside cell
             ImageIcon gif = idleGifs.get(i);
             if (gif != null) {
                 int pad = (int)(cellSize * 0.05);
@@ -203,138 +187,139 @@ public class CharacterSelect extends JPanel implements KeyListener {
                         cellSize - pad * 2, cellSize - pad * 2, this);
             }
 
-            // Draw skill labels on top of the GIF
-            drawSkillLabels(g2, i, cx, cy);
+            BufferedImage frame = chooseFrame(i);
+            if (frame != null) g2.drawImage(frame, cx, cy, cellSize, cellSize, this);
 
-            // Draw frame image on top of everything in this cell
-            drawCellFrame(g2, i, cx, cy);
+            drawBadge(g2, i, cx, cy);
 
-            // Draw P1 tag if this slot is already taken by P1
-            if (i == p1Index) {
-                g2.setFont(getSafeFont(Font.BOLD, labelFontSize + 2));
-                g2.setColor(Color.WHITE);
-                String p1tag = "P1";
-                g2.drawString(p1tag,
-                        cx + cellSize - g2.getFontMetrics().stringWidth(p1tag) - 4,
-                        cy + labelFontSize + 4);
-            }
-
-            // Draw character name below cell
-            drawCharacterName(g2, i, cx, cy);
+            g2.setFont(font(Font.BOLD, nameFontSize));
+            g2.setColor(i == selectedIndex ? Color.YELLOW : Color.WHITE);
+            String name = factory.getName(i);
+            int nx = cx + (cellSize - g2.getFontMetrics().stringWidth(name)) / 2;
+            int ny = cy + cellSize + nameFontSize + (int)(sh * 0.006);
+            g2.setColor(new Color(0, 0, 0, 160));
+            g2.drawString(name, nx + 1, ny + 1);
+            g2.setColor(i == selectedIndex ? Color.YELLOW : Color.WHITE);
+            g2.drawString(name, nx, ny);
         }
     }
 
-    /**
-     * Draws the pixel frame over the cell.
-     * - Blue  : cell currently highlighted by P1 selector, OR already picked by P1
-     * - Red   : cell currently highlighted by P2 selector
-     * - Gold  : all other cells (idle/unselected)
-     */
-    private void drawCellFrame(Graphics2D g2, int i, int cx, int cy) {
-        BufferedImage frame;
-
-        if (i == p1Index) {
-            // P1 already locked this in — always blue
-            frame = blueFrame;
-        } else if (i == selectedIndex && pickingPlayer == 1) {
-            // P1 is hovering here
-            frame = blueFrame;
-        } else if (i == selectedIndex && pickingPlayer == 2) {
-            // P2 is hovering here
-            frame = redFrame;
-        } else {
-            // Normal unselected cell
-            frame = goldFrame;
-        }
-
-        if (frame != null) {
-            // Draw the frame image scaled to fit the cell exactly
-            g2.drawImage(frame, cx, cy, cellSize, cellSize, this);
+    private BufferedImage chooseFrame(int i) {
+        switch (mode) {
+            case PVP:
+                if (i == p1Index)                             return blueFrame;
+                if (i == selectedIndex && pickingPlayer == 1) return blueFrame;
+                if (i == selectedIndex && pickingPlayer == 2) return redFrame;
+                return goldFrame;
+            case VS_AI:
+                if (i == playerIndex)   return blueFrame;
+                if (i == selectedIndex) return (playerIndex == -1) ? blueFrame : redFrame;
+                return goldFrame;
+            default:
+                return (i == selectedIndex) ? blueFrame : goldFrame;
         }
     }
 
-    private void drawSkillLabels(Graphics2D g2, int i, int cx, int cy) {
-        g2.setFont(getSafeFont(Font.PLAIN, labelFontSize));
-        int labelY = cy + cellSize - (int)(cellSize * 0.08);
-
-        if (factory.getSkill1Sheet(i) != null) {
-            g2.setColor(new Color(100, 255, 100));
-            g2.drawString("Skill 1", cx + 3, labelY);
-        } else {
-            g2.setColor(new Color(255, 80, 80));
-            g2.drawString("None", cx + 3, labelY);
-        }
-
-        if (factory.getSkill2Sheet(i) != null) {
-            g2.setColor(new Color(100, 255, 100));
-            g2.drawString("Skill 2", cx + 3, labelY + labelFontSize + 2);
-        } else {
-            g2.setColor(new Color(255, 80, 80));
-            g2.drawString("None", cx + 3, labelY + labelFontSize + 2);
-        }
-
-        if (factory.getWalkSheet(i) == null) {
-            g2.setColor(new Color(255, 200, 0));
-            g2.drawString("No Walk", cx + 3, labelY - labelFontSize - 2);
-        }
-    }
-
-    private void drawCharacterName(Graphics2D g2, int i, int cx, int cy) {
-        g2.setFont(getSafeFont(Font.BOLD, nameFontSize));
-        if (i == selectedIndex) {
-            g2.setColor(Color.YELLOW);
-        } else {
-            g2.setColor(Color.WHITE);
-        }
-        String name = factory.getName(i);
-        int nx = cx + (cellSize - g2.getFontMetrics().stringWidth(name)) / 2;
-        g2.drawString(name, nx, cy + cellSize + nameFontSize + (int)(getHeight() * 0.006));
-    }
-
-    private void drawHint(Graphics2D g2) {
-        g2.setFont(getSafeFont(Font.PLAIN, hintFontSize));
+    private void drawBadge(Graphics2D g2, int i, int cx, int cy) {
+        String badge = null;
+        if (mode == Mode.PVP   && i == p1Index)     badge = "P1";
+        if (mode == Mode.VS_AI && i == playerIndex) badge = "YOU";
+        if (badge == null) return;
+        g2.setFont(font(Font.BOLD, labelFontSize + 2));
         g2.setColor(Color.WHITE);
-        String hint = "Arrow Keys / WASD to move   ENTER to confirm";
-        int hx = (getWidth() - g2.getFontMetrics().stringWidth(hint)) / 2;
-        g2.drawString(hint, hx, getHeight() - (int)(getHeight() * 0.02));
+        g2.drawString(badge,
+                cx + cellSize - g2.getFontMetrics().stringWidth(badge) - 4,
+                cy + labelFontSize + 4);
     }
 
+    // ── Input & Selection ─────────────────────────────────────────────────────
     @Override
     public void keyPressed(KeyEvent e) {
         int key = e.getKeyCode();
-        if (key == KeyEvent.VK_RIGHT || key == KeyEvent.VK_D) {
-            if (selectedIndex % COLS < COLS - 1) selectedIndex++;
-        } else if (key == KeyEvent.VK_LEFT || key == KeyEvent.VK_A) {
-            if (selectedIndex % COLS > 0) selectedIndex--;
-        } else if (key == KeyEvent.VK_DOWN || key == KeyEvent.VK_S) {
-            if (selectedIndex + COLS < factory.getCount()) selectedIndex += COLS;
-        } else if (key == KeyEvent.VK_UP || key == KeyEvent.VK_W) {
-            if (selectedIndex - COLS >= 0) selectedIndex -= COLS;
-        } else if (key == KeyEvent.VK_ENTER) {
-            confirmSelection();
-        }
+        if      (key == KeyEvent.VK_RIGHT || key == KeyEvent.VK_D) { if (selectedIndex % COLS < COLS - 1) selectedIndex++; }
+        else if (key == KeyEvent.VK_LEFT  || key == KeyEvent.VK_A) { if (selectedIndex % COLS > 0)        selectedIndex--; }
+        else if (key == KeyEvent.VK_DOWN  || key == KeyEvent.VK_S) { if (selectedIndex + COLS < factory.getCount()) selectedIndex += COLS; }
+        else if (key == KeyEvent.VK_UP    || key == KeyEvent.VK_W) { if (selectedIndex - COLS >= 0) selectedIndex -= COLS; }
+        else if (key == KeyEvent.VK_ENTER)  confirmSelection();
+        else if (key == KeyEvent.VK_ESCAPE) { window.dispose(); new LevelSelect(); }
         repaint();
     }
 
     private void confirmSelection() {
+        switch (mode) {
+            case PVP:    confirmPvP();    break;
+            case VS_AI:  confirmVsAI();   break;
+            case ARCADE: confirmArcade(); break;
+        }
+    }
+
+    private void confirmPvP() {
         if (pickingPlayer == 1) {
             p1Index       = selectedIndex;
             pickingPlayer = 2;
             selectedIndex = 0;
             if (selectedIndex == p1Index) selectedIndex = 1;
         } else {
-            window.dispose();
-            int sw = getWidth();
-            int sh = getHeight();
-            Character p1 = factory.buildCharacter(p1Index, getClass(), sw, sh);
-            Character p2 = factory.buildCharacter(selectedIndex, getClass(), sw, sh);
-            new BattlePanel(p1, p2,
-                    factory.getHeadPath(p1Index),
-                    factory.getHeadPath(selectedIndex),
-                    getClass());
+            if (selectedIndex == p1Index) return;
+            launchPvP(p1Index, selectedIndex);
         }
     }
 
+    private void launchPvP(int idx1, int idx2) {
+        int sw = getWidth(), sh = getHeight();
+        window.dispose();
+        Character p1 = factory.buildCharacter(idx1, getClass(), sw, sh);
+        Character p2 = factory.buildCharacter(idx2, getClass(), sw, sh);
+        new BattlePanel(
+                p1, p2,
+                factory.getHeadPath(idx1), factory.getHeadPath(idx2),
+                factory.getSkill1Name(idx1), factory.getSkill2Name(idx1), factory.getSkill3Name(idx1),
+                factory.getSkill1Name(idx2), factory.getSkill2Name(idx2), factory.getSkill3Name(idx2),
+                factory.getSkill1Icon(idx1), factory.getSkill2Icon(idx1), factory.getSkill3Icon(idx1),
+                factory.getSkill1Icon(idx2), factory.getSkill2Icon(idx2), factory.getSkill3Icon(idx2),
+                getClass()
+        );
+    }
+
+    private void confirmVsAI() {
+        if (playerIndex == -1) {
+            playerIndex   = selectedIndex;
+            selectedIndex = 0;
+            if (selectedIndex == playerIndex) selectedIndex = 1;
+        } else {
+            if (selectedIndex == playerIndex) return;
+            launchVsAI(playerIndex, selectedIndex);
+        }
+    }
+
+    private void launchVsAI(int humanIdx, int aiIdx) {
+        int sw = getWidth(), sh = getHeight();
+        window.dispose();
+        Character humanChar = factory.buildCharacter(humanIdx, getClass(), sw, sh);
+        Character aiChar    = factory.buildCharacter(aiIdx,    getClass(), sw, sh);
+        new AIBattlePanel(
+                humanChar, aiChar,
+                factory.getHeadPath(humanIdx), factory.getHeadPath(aiIdx),
+                factory.getSkill1Name(humanIdx), factory.getSkill2Name(humanIdx), factory.getSkill3Name(humanIdx),
+                factory.getSkill1Name(aiIdx),    factory.getSkill2Name(aiIdx),    factory.getSkill3Name(aiIdx),
+                factory.getSkill1Icon(humanIdx), factory.getSkill2Icon(humanIdx), factory.getSkill3Icon(humanIdx),
+                factory.getSkill1Icon(aiIdx),    factory.getSkill2Icon(aiIdx),    factory.getSkill3Icon(aiIdx),
+                factory.getName(humanIdx),
+                factory.getName(aiIdx),
+                getClass()
+        );
+    }
+
+    private void confirmArcade() {
+        int playerIdx = selectedIndex;
+        int sw = getWidth(), sh = getHeight();
+        window.dispose();
+        ArrayList<Integer> opponents = new ArrayList<>();
+        for (int i = 0; i < factory.getCount(); i++) if (i != playerIdx) opponents.add(i);
+        java.util.Collections.shuffle(opponents);
+        new ArcadeBattlePanel(playerIdx, opponents, 0, factory, sw, sh, getClass());
+    }
+
     @Override public void keyReleased(KeyEvent e) {}
-    @Override public void keyTyped(KeyEvent e)   {}
+    @Override public void keyTyped(KeyEvent e)    {}
 }

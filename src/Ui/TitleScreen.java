@@ -70,8 +70,7 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
     }
 
     private void loadImages() {
-        // Try multiple common path formats so it works regardless of how
-        // you named or placed the file in your resources folder
+
         String[] bgPaths = {
                 "/backgrounds/FINAL_TITLE_SCREEN.png",
                 "/backgrounds/finalbg.png",
@@ -248,7 +247,7 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
         stopMusic();
         exitFullScreen();
         window.dispose();
-        new CharacterSelect();
+        new LevelSelect();
     }
 
     private void handleAbout() {

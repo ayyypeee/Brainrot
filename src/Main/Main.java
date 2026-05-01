@@ -4,8 +4,8 @@ import Ui.LoginScreen;
 import Ui.TitleScreen;
 
 public class Main {
-    public static void main(String[] args) {
+    public static void main(String[] args) { 
 
-        new LoginScreen();
+        new TitleScreen();
     }
 }

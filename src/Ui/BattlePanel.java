@@ -1,72 +1,58 @@
 package Ui;
 
 import entities.Character;
+import entities.CharSkillDB;
+import entities.CharSkill;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 
-public class BattlePanel extends JPanel implements MouseListener, MouseMotionListener {
+public class BattlePanel extends JPanel implements MouseListener, MouseMotionListener, KeyListener {
 
-    private JFrame  window;
-    private Image   bgImage;
+    private final Character p1, p2;
+    private static final boolean P1_FACES_RIGHT = true;
+    private static final boolean P2_FACES_RIGHT = false;
 
-    private Character p1;
-    private Character p2;
+    private final String p1CharName, p2CharName;
 
-    private final boolean P1_FACES_RIGHT = true;
-    private final boolean P2_FACES_RIGHT = false;
+    private Image bgImage;
+    private BufferedImage boxImage, vsImage, platformImage;
 
-    private String p1Sk1Name, p1Sk2Name, p1Sk3Name;
-    private String p2Sk1Name, p2Sk2Name, p2Sk3Name;
+    private final BattleEngine engine;
 
-    private BufferedImage boxImage;
-    private BufferedImage vsImage;
-    private BufferedImage platformImage;
-    private BufferedImage p1HeadImg;
-    private BufferedImage p2HeadImg;
+    private enum Phase { IDLE, APPROACHING, ANIMATING, IMPACTED, RETREATING, PASSIVE_MSG }
+    private Phase phase = Phase.IDLE;
 
-    private final int MAX_HP = 5;
-    private int p1HP, p2HP;
+    private boolean gameOver = false;
+    private String winner = "";
+    private boolean paused = false;
 
-    private int  skillTurn = 1;
-    private int  round     = 1;
-    private boolean skillUsedThisTurn = false;
-    private boolean damageDealt       = false;
-    private boolean gameOver          = false;
-    private String  winner            = "";
-
-    private SkillButton activeBtn1, activeBtn2, activeBtn3;
-    private Point mousePos = new Point(0, 0);
-
-    private int headSize, topY, hudFontSize, gameOverFontSize;
-    private int btnW, btnH, btnY;
-
-    private int groundY;
-
+    private int groundY, btnW, btnH, btnY;
     private boolean layoutReady = false;
+    private SkillButton btn1, btn2, btn3;
+    private Point mousePos = new Point();
+    private int hoveredSkill = 0;
 
-    private int[] p1Rect1, p1Rect2, p1Rect3;
-    private int[] p2Rect1, p2Rect2, p2Rect3;
-
+    private JFrame window;
     private Timer gameTimer;
 
     public BattlePanel(Character p1, Character p2,
                        String p1HeadPath, String p2HeadPath,
-                       String p1Sk1Name, String p1Sk2Name, String p1Sk3Name,
-                       String p2Sk1Name, String p2Sk2Name, String p2Sk3Name,
-                       int[] p1Rect1, int[] p1Rect2, int[] p1Rect3,
-                       int[] p2Rect1, int[] p2Rect2, int[] p2Rect3,
+                       String p1Sk1, String p1Sk2, String p1Sk3,
+                       String p2Sk1, String p2Sk2, String p2Sk3,
+                       int[] r1, int[] r2, int[] r3,
+                       int[] r4, int[] r5, int[] r6,
+                       String p1CharName, String p2CharName,
                        Class<?> loader) {
 
-        this.p1 = p1; this.p2 = p2;
-        this.p1Sk1Name = p1Sk1Name; this.p1Sk2Name = p1Sk2Name; this.p1Sk3Name = p1Sk3Name;
-        this.p2Sk1Name = p2Sk1Name; this.p2Sk2Name = p2Sk2Name; this.p2Sk3Name = p2Sk3Name;
-        this.p1Rect1 = p1Rect1; this.p1Rect2 = p1Rect2; this.p1Rect3 = p1Rect3;
-        this.p2Rect1 = p2Rect1; this.p2Rect2 = p2Rect2; this.p2Rect3 = p2Rect3;
+        this.p1 = p1;
+        this.p2 = p2;
+        this.p1CharName = p1CharName;
+        this.p2CharName = p2CharName;
 
-        p1HP = MAX_HP; p2HP = MAX_HP;
+        engine = new BattleEngine(p1CharName, "Player 1", p2CharName, "Player 2");
 
         loadAssets(p1HeadPath, p2HeadPath, loader);
         p1.setImageObserver(this);
@@ -75,97 +61,70 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
         setFocusable(true);
         addMouseListener(this);
         addMouseMotionListener(this);
+        addKeyListener(this);
 
         gameTimer = new Timer(16, e -> update());
         gameTimer.start();
 
         setupWindow();
+        SwingUtilities.invokeLater(() -> { calculateLayout(); placeCharacters(); });
 
-        SwingUtilities.invokeLater(() -> {
-            calculateLayout();
-            placeCharacters();
-        });
+        engine.enqueueDialogue("Round 1 begins! Player 1 goes first.");
     }
 
-    // ── Asset loading ─────────────────────────────────────────────────────────
-    private void loadAssets(String p1HeadPath, String p2HeadPath, Class<?> loader) {
-        try { bgImage = new ImageIcon(loader.getResource("/backgrounds/background.png")).getImage(); }
-        catch (Exception e) { System.out.println("BG not found"); }
+    private void loadAssets(String h1, String h2, Class<?> loader) {
+        try { bgImage = new ImageIcon(loader.getResource("/backgrounds/background.png")).getImage(); } catch (Exception e) {}
+        try { boxImage = ImageIO.read(loader.getResource("/ui/v1_box_skills.png")); } catch (Exception e) {}
+        try { vsImage = ImageIO.read(loader.getResource("/ui/vs.png")); } catch (Exception e) {}
+        try { platformImage = ImageIO.read(loader.getResource("/level_assets/PLATFORM.png")); } catch (Exception e) {}
 
-        try { boxImage = ImageIO.read(loader.getResource("/ui/v1_box_skills.png")); }
-        catch (Exception e) { System.out.println("Box not found"); }
-
-        try { vsImage = ImageIO.read(loader.getResource("/ui/Guardians_Of_Sanity__1_.png")); }
-        catch (Exception e) {
-            try { vsImage = ImageIO.read(loader.getResource("/ui/vs.png")); }
-            catch (Exception e2) { System.out.println("VS image not found"); }
-        }
-
-        try { platformImage = ImageIO.read(loader.getResource("/level_assets/PLATFORM.png")); }
-        catch (Exception e) { System.out.println("Platform not found"); }
-
-        if (p1HeadPath != null)
-            try { p1HeadImg = ImageIO.read(loader.getResource(p1HeadPath)); }
-            catch (Exception e) { System.out.println("P1 head not found"); }
-
-        if (p2HeadPath != null)
-            try { p2HeadImg = ImageIO.read(loader.getResource(p2HeadPath)); }
-            catch (Exception e) { System.out.println("P2 head not found"); }
+        if (h1 != null) try { engine.head1 = ImageIO.read(loader.getResource(h1)); } catch (Exception e) {}
+        if (h2 != null) try { engine.head2 = ImageIO.read(loader.getResource(h2)); } catch (Exception e) {}
     }
 
-    // ── Layout ────────────────────────────────────────────────────────────────
     private void calculateLayout() {
         int sw = getWidth(), sh = getHeight();
-
-        headSize         = (int)(sh * 0.075);
-        topY             = (int)(sh * 0.015);
-        hudFontSize      = Math.max(13, (int)(sh * 0.026));
-        gameOverFontSize = Math.max(40, (int)(sh * 0.09));
-
         btnH = (int)(sh * 0.16);
         btnW = (int)(sw * 0.28);
-        int gap    = (int)(sw * 0.02);
-        int totalW = btnW * 3 + gap * 2;
-        int startX = (sw - totalW) / 2;
+        int gap = (int)(sw * 0.02);
+        int startX = (sw - btnW * 3 - gap * 2) / 2;
         btnY = sh - btnH - (int)(sh * 0.02);
-
         groundY = (int)(sh * 0.60);
-
         rebuildButtons(startX, gap);
         layoutReady = true;
     }
 
     private void placeCharacters() {
         int sw = getWidth();
-
-        int p1X = sw / 4     - p1.getWidth() / 2;
-        int p2X = sw * 3 / 4 - p2.getWidth() / 2;
-
         p1.facingRight = P1_FACES_RIGHT;
         p2.facingRight = P2_FACES_RIGHT;
-
-        p1.placeOnPlatform(p1X, groundY);
-        p2.placeOnPlatform(p2X, groundY);
+        p1.placeOnPlatform(sw / 4 - p1.getWidth() / 2, groundY);
+        p2.placeOnPlatform(sw * 3 / 4 - p2.getWidth() / 2, groundY);
     }
 
     private void rebuildButtons(int startX, int gap) {
-        boolean p1Turn = (skillTurn == 1);
-        String n1 = p1Turn ? p1Sk1Name : p2Sk1Name;
-        String n2 = p1Turn ? p1Sk2Name : p2Sk2Name;
-        String n3 = p1Turn ? p1Sk3Name : p2Sk3Name;
+        String charName = engine.turnSide == 1 ? p1CharName : p2CharName;
+        CharSkill[] skills = CharSkillDB.getAll(charName);
 
-        activeBtn1 = new SkillButton(1, n1);
-        activeBtn1.setBounds(startX, btnY, btnW, btnH);
+        String n1 = skills.length > 0 ? skills[0].name : "Skill 1";
+        String n2 = skills.length > 1 ? skills[1].name : "Skill 2";
+        String n3 = skills.length > 2 ? skills[2].name : "Skill 3";
 
-        activeBtn2 = new SkillButton(2, n2);
-        activeBtn2.setBounds(startX + btnW + gap, btnY, btnW, btnH);
+        btn1 = new SkillButton(1, n1);
+        btn1.setBounds(startX, btnY, btnW, btnH);
+        btn1.setManaInfo("+" + (skills.length > 0 ? skills[0].manaRegen : 15) + " MP", true);
 
-        activeBtn3 = new SkillButton(3, n3);
-        activeBtn3.setBounds(startX + (btnW + gap) * 2, btnY, btnW, btnH);
+        btn2 = new SkillButton(2, n2);
+        btn2.setBounds(startX + btnW + gap, btnY, btnW, btnH);
+        btn2.setManaInfo("-" + (skills.length > 1 ? skills[1].manaCost : 20) + " MP", false);
+
+        btn3 = new SkillButton(3, n3);
+        btn3.setBounds(startX + (btnW + gap) * 2, btnY, btnW, btnH);
+        btn3.setManaInfo("-" + (skills.length > 2 ? skills[2].manaCost : 35) + " MP", false);
     }
 
     private void setupWindow() {
-        window = new JFrame("Guardians of Sanity BATTLE");
+        window = new JFrame("Guardians of Sanity PvP");
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         window.setUndecorated(true);
         window.add(this);
@@ -174,9 +133,12 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
         else { window.setExtendedState(JFrame.MAXIMIZED_BOTH); window.setVisible(true); }
     }
 
-    // ── Game loop ─────────────────────────────────────────────────────────────
     private void update() {
-        if (gameOver) return;
+        if (gameOver || paused) return;
+
+        engine.tickDialogue();
+
+        if (engine.isDialogueActive()) { repaint(); return; }
 
         p1.update();
         p2.update();
@@ -184,73 +146,136 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
         if (!p1.isAnyCastingSkill()) p1.facingRight = P1_FACES_RIGHT;
         if (!p2.isAnyCastingSkill()) p2.facingRight = P2_FACES_RIGHT;
 
-        if (skillUsedThisTurn && !damageDealt) {
-            if (skillTurn == 1 && (p1.isCastingSkill1() || p1.isCastingSkill2() || p1.isCastingSkill3())) {
-                p2HP--; damageDealt = true; checkGameOver();
-            }
-            if (skillTurn == 2 && (p2.isCastingSkill1() || p2.isCastingSkill2() || p2.isCastingSkill3())) {
-                p1HP--; damageDealt = true; checkGameOver();
-            }
-        }
+        Character attacker = engine.turnSide == 1 ? p1 : p2;
 
-        if (skillUsedThisTurn && damageDealt) {
-            if (skillTurn == 1 && !p1.isAnyCastingSkill()) {
-                skillTurn = 2; skillUsedThisTurn = false; damageDealt = false; switchButtons();
-            } else if (skillTurn == 2 && !p2.isAnyCastingSkill()) {
-                skillTurn = 1; skillUsedThisTurn = false; damageDealt = false; round++; switchButtons();
-            }
+        switch (phase) {
+
+            case APPROACHING:
+                if (attacker.isCastingSkill1() || attacker.isCastingSkill2() || attacker.isCastingSkill3()) {
+                    phase = Phase.ANIMATING;
+                }
+                break;
+
+            case ANIMATING:
+                boolean stillAnimating = attacker.isCastingSkill1()
+                        || attacker.isCastingSkill2()
+                        || attacker.isCastingSkill3();
+                if (!stillAnimating) {
+                    engine.applyPendingDamage();
+                    checkGameOver();
+                    phase = Phase.IMPACTED;
+                }
+                break;
+
+            case IMPACTED:
+                if (!attacker.isAnyCastingSkill()) {
+                    phase = Phase.RETREATING;
+                }
+                break;
+
+            case RETREATING:
+                if (!attacker.isAnyCastingSkill()) {
+                    engine.drainPassiveQueue();
+                    if (engine.isDialogueActive() || engine.hasPassiveMessages()) {
+                        phase = Phase.PASSIVE_MSG;
+                    } else {
+                        finishTurn();
+                    }
+                }
+                break;
+
+            case PASSIVE_MSG:
+                if (!engine.isDialogueActive()) {
+                    finishTurn();
+                }
+                break;
+
+            default:
+                break;
         }
 
         updateButtonStates();
         repaint();
     }
 
+    private void finishTurn() {
+        if (gameOver) return;
+        int prevSide = engine.turnSide;
+        engine.endTurn(prevSide);
+        phase = Phase.IDLE;
+
+        engine.beginTurn(engine.turnSide);
+
+        if (engine.isSideStunned(engine.turnSide)) {
+            String sName = engine.turnSide == 1 ? engine.label1 : engine.label2;
+            engine.enqueueDialogue(sName + " is stunned and has to skip their turn!");
+            engine.consumeStun(engine.turnSide);
+            engine.endTurn(engine.turnSide);
+            engine.beginTurn(engine.turnSide);
+        }
+
+        switchButtons();
+
+        String who = engine.turnSide == 1 ? "Player 1" : "Player 2";
+        engine.enqueueDialogue(who + ", it is your turn! Choose a skill.");
+    }
+
     private void switchButtons() {
-        if (!layoutReady) return;
-        int sw  = getWidth();
+        int sw = getWidth();
         int gap = (int)(sw * 0.02);
         rebuildButtons((sw - btnW * 3 - gap * 2) / 2, gap);
     }
 
     private void updateButtonStates() {
-        if (!layoutReady || activeBtn1 == null) return;
-        boolean animating = p1.isAnyCastingSkill() || p2.isAnyCastingSkill();
-        boolean p1Turn    = skillTurn == 1;
-        activeBtn1.setDisabled(animating || skillUsedThisTurn || !(p1Turn ? p1.hasSkill1() : p2.hasSkill1()));
-        activeBtn2.setDisabled(animating || skillUsedThisTurn || !(p1Turn ? p1.hasSkill2() : p2.hasSkill2()));
-        activeBtn3.setDisabled(animating || skillUsedThisTurn || !(p1Turn ? p1.hasSkill3() : p2.hasSkill3()));
-        activeBtn1.setHovered(activeBtn1.getBounds().contains(mousePos));
-        activeBtn2.setHovered(activeBtn2.getBounds().contains(mousePos));
-        activeBtn3.setHovered(activeBtn3.getBounds().contains(mousePos));
+        if (!layoutReady || btn1 == null) return;
+
+        boolean busy = phase != Phase.IDLE || engine.isDialogueActive() || paused;
+        int side = engine.turnSide;
+
+        btn1.setDisabled(busy);
+        btn2.setDisabled(busy || !engine.canUseSkill(side, 2));
+        btn3.setDisabled(busy || !engine.canUseSkill(side, 3));
+
+        btn1.setHovered(!btn1.isDisabled() && btn1.getBounds().contains(mousePos));
+        btn2.setHovered(!btn2.isDisabled() && btn2.getBounds().contains(mousePos));
+        btn3.setHovered(!btn3.isDisabled() && btn3.getBounds().contains(mousePos));
     }
 
-    // ── Game over ─────────────────────────────────────────────────────────────
     private void checkGameOver() {
-        if (p1HP <= 0) { p1HP = 0; gameOver = true; winner = "PLAYER 2 WINS!"; end(); }
-        else if (p2HP <= 0) { p2HP = 0; gameOver = true; winner = "PLAYER 1 WINS!"; end(); }
+        if (engine.stats2.hp <= 0) {
+            engine.stats2.hp = 0;
+            winner = "PLAYER 1 WINS!";
+            gameOver = true;
+            endGame();
+        } else if (engine.stats1.hp <= 0) {
+            engine.stats1.hp = 0;
+            winner = "PLAYER 2 WINS!";
+            gameOver = true;
+            endGame();
+        }
     }
 
-    private void end() {
+    private void endGame() {
         gameTimer.stop();
         repaint();
         new Timer(1500, e -> {
-            int choice = JOptionPane.showConfirmDialog(window,
-                    winner + "\n\nPlay again?", "Game Over",
-                    JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE);
-            if (choice == JOptionPane.YES_OPTION) { window.dispose(); new CharacterSelect(); }
-            else System.exit(0);
+            int c = JOptionPane.showConfirmDialog(window,
+                    winner + "\n\nPlay again?",
+                    "Game Over", JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE);
+            if (c == JOptionPane.YES_OPTION) { window.dispose(); new CharacterSelect(); }
+            else { window.dispose(); new LevelSelect(); }
         }) {{ setRepeats(false); start(); }};
     }
 
-    // ── Painting ──────────────────────────────────────────────────────────────
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+        if (!layoutReady) { calculateLayout(); placeCharacters(); }
+
         Graphics2D g2 = (Graphics2D) g;
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-
-        if (!layoutReady) { calculateLayout(); placeCharacters(); }
 
         int sw = getWidth(), sh = getHeight();
 
@@ -259,106 +284,57 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
 
         drawGround(g2, sw, sh);
 
-        p1.draw(g2, this);
-        p2.draw(g2, this);
+        if (engine.turnSide == 1 && p1.isAnyCastingSkill()) {
+            p2.draw(g2, this); p1.draw(g2, this);
+        } else if (engine.turnSide == 2 && p2.isAnyCastingSkill()) {
+            p1.draw(g2, this); p2.draw(g2, this);
+        } else {
+            p1.draw(g2, this); p2.draw(g2, this);
+        }
 
-        drawSkillButtons(g2);
+        engine.drawHUD(g2, sw, sh, this, vsImage, engine.turnSide == 1, engine.round);
+        drawSkillButtons(g2, sw, sh);
+        engine.drawDialogueBox(g2, sw, sh);
 
-        drawTopHUD(g2);
+        if (hoveredSkill > 0 && !engine.isDialogueActive())
+            engine.drawSkillTooltip(g2, engine.turnSide, hoveredSkill, mousePos.x, mousePos.y, sw, sh);
 
-        if (gameOver) drawGameOverOverlay(g2);
+        engine.tooltipX = mousePos.x;
+        engine.tooltipY = mousePos.y;
+        engine.tooltipText = "hover";
+
+        if (!engine.isDialogueActive() && !gameOver && phase == Phase.IDLE)
+            drawTurnLabel(g2, sw, sh);
+
+        if (paused) drawPauseOverlay(g2, sw, sh);
+        if (gameOver) drawGameOverOverlay(g2, sw, sh);
     }
 
-    // ── Ground ────────────────────────────────────────────────────────────────
     private void drawGround(Graphics2D g2, int sw, int sh) {
-        if (platformImage != null) {
-            g2.drawImage(platformImage,
-                    0, groundY, sw, sh,
-                    0, 0, platformImage.getWidth(), platformImage.getHeight(),
-                    this);
-        } else {
+        if (platformImage != null)
+            g2.drawImage(platformImage, 0, groundY, sw, sh,
+                    0, 0, platformImage.getWidth(), platformImage.getHeight(), this);
+        else {
             g2.setColor(new Color(100, 130, 60));
             g2.fillRect(0, groundY, sw, (int)((sh - groundY) * 0.15));
             g2.setColor(new Color(120, 80, 35));
             g2.fillRect(0, groundY + (int)((sh - groundY) * 0.15), sw, sh - groundY);
-            g2.setColor(new Color(40, 55, 15));
-            g2.setStroke(new BasicStroke(3f));
-            g2.drawLine(0, groundY, sw, groundY);
-            g2.setStroke(new BasicStroke(1f));
         }
     }
 
-    // ── Top HUD ───────────────────────────────────────────────────────────────
-    private void drawTopHUD(Graphics2D g2) {
-        int sw = getWidth(), sh = getHeight();
-
-        int barH    = (int)(sh * 0.028);
-        int headGap = (int)(sw * 0.010);
-        int barMaxW = (int)(sw * 0.315);
-        int nameY   = topY + (int)(headSize * 0.55);
-        int barY    = nameY + (int)(sh * 0.01);
-
-        int p1HeadX = (int)(sw * 0.01);
-        if (p1HeadImg != null) g2.drawImage(p1HeadImg, p1HeadX, topY, headSize, headSize, this);
-        else { g2.setColor(new Color(100, 200, 255)); g2.fillRect(p1HeadX, topY, headSize, headSize); }
-        g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, hudFontSize));
-        g2.setColor(skillTurn == 1 ? new Color(255, 200, 80) : Color.WHITE);
-        g2.drawString("player 1", p1HeadX + headSize + headGap, nameY);
-        drawHealthBar(g2, p1HeadX + headSize + headGap, barY, barMaxW, barH, p1HP, MAX_HP, true);
-
-        int p2HeadX = sw - (int)(sw * 0.01) - headSize;
-        if (p2HeadImg != null) g2.drawImage(p2HeadImg, p2HeadX, topY, headSize, headSize, this);
-        else { g2.setColor(new Color(255, 150, 100)); g2.fillRect(p2HeadX, topY, headSize, headSize); }
-        g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, hudFontSize));
-        g2.setColor(skillTurn == 2 ? new Color(255, 200, 80) : Color.WHITE);
-        String p2name  = "player 2";
-        int p2BarRight = p2HeadX - headGap;
-        int p2BarLeft  = p2BarRight - barMaxW;
-        g2.drawString(p2name, p2BarRight - g2.getFontMetrics().stringWidth(p2name), nameY);
-        drawHealthBar(g2, p2BarLeft, barY, barMaxW, barH, p2HP, MAX_HP, false);
-
-        int cx = sw / 2;
-        int roundFS = Math.max(16, (int)(sh * 0.032));
-        g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, roundFS));
-        g2.setColor(Color.WHITE);
-        String roundStr = "ROUND  " + round;
-        g2.drawString(roundStr, cx - g2.getFontMetrics().stringWidth(roundStr) / 2, topY + roundFS);
-        int vsSize = (int)(sh * 0.065);
-        if (vsImage != null)
-            g2.drawImage(vsImage, cx - vsSize / 2, topY + roundFS + 2, vsSize, vsSize, this);
-        else {
-            g2.setColor(new Color(220, 50, 50));
-            g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, (int)(sh * 0.04)));
-            g2.drawString("VS", cx - 18, topY + headSize / 2 + 12);
-        }
-
-        if (!gameOver && !p1.isAnyCastingSkill() && !p2.isAnyCastingSkill()) {
-            String lbl   = skillTurn == 1 ? "PLAYER 1\nTURN" : "PLAYER 2\nTURN";
-            Color  color = skillTurn == 1 ? new Color(100, 180, 255) : new Color(255, 80, 80);
-            drawCenteredText(g2, lbl, color, sw, sh);
-        }
+    private void drawSkillButtons(Graphics2D g2, int sw, int sh) {
+        if (!layoutReady || btn1 == null) return;
+        btn1.draw(g2, boxImage, this);
+        btn2.draw(g2, boxImage, this);
+        btn3.draw(g2, boxImage, this);
+        engine.drawSkillMeta(g2, engine.turnSide,
+                btn1.getBounds(), btn2.getBounds(), btn3.getBounds(), sh);
     }
 
-    private void drawHealthBar(Graphics2D g2, int x, int y, int maxW, int barH,
-                               int hp, int maxHp, boolean leftToRight) {
-        g2.setColor(new Color(60, 0, 0));
-        g2.fillRect(x, y, maxW, barH);
-        int fillW = (int)(maxW * (double) hp / maxHp);
-        if (fillW > 0) {
-            float ratio = (float) hp / maxHp;
-            g2.setColor(ratio > 0.6f ? new Color(60, 210, 60)
-                    : ratio > 0.3f  ? new Color(230, 210, 40)
-                    :                  new Color(230, 50, 50));
-            g2.fillRect(leftToRight ? x : x + maxW - fillW, y, fillW, barH);
-        }
-        g2.setColor(Color.WHITE);
-        g2.setStroke(new BasicStroke(2f));
-        g2.drawRect(x, y, maxW, barH);
-        g2.setStroke(new BasicStroke(1f));
-    }
-
-    private void drawCenteredText(Graphics2D g2, String text, Color color, int sw, int sh) {
-        String[] lines = text.split("\n");
+    private void drawTurnLabel(Graphics2D g2, int sw, int sh) {
+        String lbl = engine.turnSide == 1 ? "PLAYER 1'S\nTURN" : "PLAYER 2'S\nTURN";
+        Color color = engine.turnSide == 1 ? new Color(100, 180, 255) : new Color(255, 80, 80);
+        String[] lines = lbl.split("\n");
         int fs = Math.max(22, (int)(sh * 0.048));
         g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, fs));
         g2.setColor(color);
@@ -369,57 +345,89 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
         }
     }
 
-    // ── Skill buttons ─────────────────────────────────────────────────────────
-    private void drawSkillButtons(Graphics2D g2) {
-        if (!layoutReady || activeBtn1 == null) return;
-        activeBtn1.draw(g2, boxImage, this);
-        activeBtn2.draw(g2, boxImage, this);
-        activeBtn3.draw(g2, boxImage, this);
+    private void drawPauseOverlay(Graphics2D g2, int sw, int sh) {
+        g2.setColor(new Color(0, 0, 0, 130));
+        g2.fillRect(0, 0, sw, sh);
+        int fs = Math.max(40, (int)(sh * 0.09));
+        g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, fs));
+        g2.setColor(new Color(255, 220, 80));
+        String s = "PAUSED";
+        g2.drawString(s, sw / 2 - g2.getFontMetrics().stringWidth(s) / 2, sh / 2);
     }
 
-    private void drawGameOverOverlay(Graphics2D g2) {
+    private void drawGameOverOverlay(Graphics2D g2, int sw, int sh) {
         g2.setColor(new Color(0, 0, 0, 160));
-        g2.fillRect(0, 0, getWidth(), getHeight());
-        g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, gameOverFontSize));
+        g2.fillRect(0, 0, sw, sh);
+        int fs = Math.max(40, (int)(sh * 0.09));
+        g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, fs));
         g2.setColor(Color.YELLOW);
-        int tw = g2.getFontMetrics().stringWidth(winner);
-        g2.drawString(winner, getWidth() / 2 - tw / 2, getHeight() / 2);
+        g2.drawString(winner, sw / 2 - g2.getFontMetrics().stringWidth(winner) / 2, sh / 2);
     }
 
-    // ── Mouse ─────────────────────────────────────────────────────────────────
+    private void handleSkillClick(int skillNum) {
+        if (gameOver || paused || phase != Phase.IDLE) return;
+        if (engine.isDialogueActive()) return;
+        if (!engine.canUseSkill(engine.turnSide, skillNum)) return;
+
+        engine.resolveSkill(engine.turnSide, skillNum);
+
+        Character attacker = engine.turnSide == 1 ? p1 : p2;
+        Character defender = engine.turnSide == 1 ? p2 : p1;
+        attacker.startAttack(skillNum, defender.getX() + defender.getWidth() / 2);
+
+        phase = Phase.APPROACHING;
+    }
+
     @Override
     public void mouseClicked(MouseEvent e) {
-        if (gameOver || !layoutReady || activeBtn1 == null) return;
-        if (skillUsedThisTurn || p1.isAnyCastingSkill() || p2.isAnyCastingSkill()) return;
-
-        Point pt  = e.getPoint();
-        int p1CX  = p1.getX() + p1.getWidth() / 2;
-        int p2CX  = p2.getX() + p2.getWidth() / 2;
-
-        if (skillTurn == 1) {
-            if      (activeBtn1.contains(pt) && p1.hasSkill1()) { p1.startAttack(1, p2CX); skillUsedThisTurn = true; }
-            else if (activeBtn2.contains(pt) && p1.hasSkill2()) { p1.startAttack(2, p2CX); skillUsedThisTurn = true; }
-            else if (activeBtn3.contains(pt) && p1.hasSkill3()) { p1.startAttack(3, p2CX); skillUsedThisTurn = true; }
-        } else {
-            if      (activeBtn1.contains(pt) && p2.hasSkill1()) { p2.startAttack(1, p1CX); skillUsedThisTurn = true; }
-            else if (activeBtn2.contains(pt) && p2.hasSkill2()) { p2.startAttack(2, p1CX); skillUsedThisTurn = true; }
-            else if (activeBtn3.contains(pt) && p2.hasSkill3()) { p2.startAttack(3, p1CX); skillUsedThisTurn = true; }
-        }
+        if (gameOver || paused || !layoutReady) return;
+        if (engine.isDialogueActive()) { engine.advanceDialogue(); repaint(); return; }
+        if (phase != Phase.IDLE) return;
+        Point pt = e.getPoint();
+        if (btn1.contains(pt)) handleSkillClick(1);
+        else if (btn2.contains(pt)) handleSkillClick(2);
+        else if (btn3.contains(pt)) handleSkillClick(3);
     }
 
     @Override
     public void mouseMoved(MouseEvent e) {
         mousePos = e.getPoint();
-        if (!layoutReady || activeBtn1 == null) return;
-        boolean onBtn = activeBtn1.getBounds().contains(mousePos)
-                || activeBtn2.getBounds().contains(mousePos)
-                || activeBtn3.getBounds().contains(mousePos);
-        setCursor(onBtn ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor());
+        hoveredSkill = btn1 != null && btn1.getBounds().contains(mousePos) ? 1
+                : btn2 != null && btn2.getBounds().contains(mousePos) ? 2
+                : btn3 != null && btn3.getBounds().contains(mousePos) ? 3 : 0;
+        engine.tooltipText = "hover";
+        setCursor(hoveredSkill > 0
+                ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                : Cursor.getDefaultCursor());
+        repaint();
     }
 
-    @Override public void mousePressed(MouseEvent e)  {}
+    @Override
+    public void keyPressed(KeyEvent e) {
+        int k = e.getKeyCode();
+        if (k == KeyEvent.VK_ENTER || k == KeyEvent.VK_SPACE) {
+            if (engine.isDialogueActive()) { engine.advanceDialogue(); repaint(); }
+        } else if (k == KeyEvent.VK_ESCAPE) {
+            showEscMenu();
+        }
+    }
+
+    private void showEscMenu() {
+        if (gameOver) return;
+        boolean wasRunning = !paused;
+        if (wasRunning) { paused = true; gameTimer.stop(); }
+        Object[] opts = { "Continue", "Main Menu" };
+        int c = JOptionPane.showOptionDialog(window, "Paused", "Pause",
+                JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, opts, opts[0]);
+        if (c == 0 || c < 0) { paused = false; gameTimer.start(); }
+        else { gameTimer.stop(); window.dispose(); new LevelSelect(); }
+    }
+
+    @Override public void mousePressed(MouseEvent e) {}
     @Override public void mouseReleased(MouseEvent e) {}
-    @Override public void mouseEntered(MouseEvent e)  {}
-    @Override public void mouseExited(MouseEvent e)   {}
-    @Override public void mouseDragged(MouseEvent e)  {}
+    @Override public void mouseEntered(MouseEvent e) {}
+    @Override public void mouseExited(MouseEvent e) {}
+    @Override public void mouseDragged(MouseEvent e) {}
+    @Override public void keyReleased(KeyEvent e) {}
+    @Override public void keyTyped(KeyEvent e) {}
 }

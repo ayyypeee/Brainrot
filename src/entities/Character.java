@@ -9,27 +9,21 @@ import javax.swing.ImageIcon;
 
 public class Character extends GameEntity {
 
-    // ── Walk frames ───────────────────────────────────────────────────────────
     private BufferedImage[] framesRight;
     private BufferedImage[] framesLeft;
-    private BufferedImage   currentFrame;
-    private boolean         hasPNG = false;
+    private BufferedImage currentFrame;
+    private boolean hasPNG = false;
 
-    // ── Skill data ────────────────────────────────────────────────────────────
     private SkillData skill1, skill2, skill3;
 
-    // ── Facing ────────────────────────────────────────────────────────────────
     public boolean facingRight = true;
 
-    // ── Walk animation ────────────────────────────────────────────────────────
-    private int  walkFrameIndex = 1;
-    private int  walkAnimTick   = 0;
+    private int walkFrameIndex = 1;
+    private int walkAnimTick = 0;
     private static final int WALK_ANIM_SPEED = 4;
 
-    // ── Position ──────────────────────────────────────────────────────────────
     private int standX, standY;
 
-    // ── Attack state ──────────────────────────────────────────────────────────
     public enum AttackState { IDLE, WALKING_TO, SKILL, WALKING_BACK }
     private AttackState attackState = AttackState.IDLE;
 
@@ -37,10 +31,8 @@ public class Character extends GameEntity {
     private int pendingSkill;
     private static final int ATTACK_WALK_SPEED = 36;
 
-    // ── Fallback GIF ──────────────────────────────────────────────────────────
     private ImageIcon idleGif;
 
-    // ── Constructor ───────────────────────────────────────────────────────────
     public Character(String[] framePaths,
                      int charW, int charH,
                      String idleGifPath,
@@ -61,7 +53,6 @@ public class Character extends GameEntity {
         if (sk3Paths != null && sk3Paths.length > 0) skill3 = loadSkillFrames(sk3Paths, loader);
     }
 
-    // ── Asset loading ─────────────────────────────────────────────────────────
     private void loadFrames(String[] paths, Class<?> loader) {
         framesRight = new BufferedImage[paths.length];
         framesLeft  = new BufferedImage[paths.length];
@@ -70,7 +61,10 @@ public class Character extends GameEntity {
         for (int i = 0; i < paths.length; i++) {
             try {
                 BufferedImage img = ImageIO.read(loader.getResource(paths[i]));
-                if (img == null) { System.out.println("Null image: " + paths[i]); continue; }
+                if (img == null) {
+                    System.out.println("I could not load the image located at " + paths[i]);
+                    continue;
+                }
 
                 framesRight[i] = img;
 
@@ -83,7 +77,7 @@ public class Character extends GameEntity {
 
                 loaded++;
             } catch (Exception e) {
-                System.out.println("Frame not found: " + paths[i]);
+                System.out.println("I could not find the animation frame at " + paths[i]);
             }
         }
 
@@ -96,7 +90,7 @@ public class Character extends GameEntity {
     private void loadIdleGif(String path, Class<?> loader) {
         if (path == null) return;
         try { idleGif = new ImageIcon(loader.getResource(path)); }
-        catch (Exception e) { System.out.println("Idle GIF not found: " + path); }
+        catch (Exception e) { System.out.println("I could not find the idle animation at " + path); }
     }
 
     private SkillData loadSkillFrames(String[] paths, Class<?> loader) {
@@ -105,7 +99,7 @@ public class Character extends GameEntity {
             try {
                 BufferedImage img = ImageIO.read(loader.getResource(path));
                 if (img != null) frames.add(img);
-            } catch (Exception e) { System.out.println("Skill frame not found: " + path); }
+            } catch (Exception e) { System.out.println("I could not find the skill animation at " + path); }
         }
         return frames.isEmpty() ? null : new SkillData(frames, 10);
     }
@@ -114,7 +108,6 @@ public class Character extends GameEntity {
         if (idleGif != null) idleGif.setImageObserver(observer);
     }
 
-    // ── Placement ─────────────────────────────────────────────────────────────
     public void placeOnPlatform(int posX, int platformTopY) {
         standX = posX;
         int overlap = (int)(height * 0.20);
@@ -136,7 +129,6 @@ public class Character extends GameEntity {
         if (skill3 != null) skill3.setDrawY(dy);
     }
 
-    // ── Attack API ────────────────────────────────────────────────────────────
     public void startAttack(int skillNum, int enemyCentX) {
         if (attackState != AttackState.IDLE) return;
         pendingSkill = skillNum;
@@ -148,15 +140,22 @@ public class Character extends GameEntity {
         walkAnimTick   = 0;
     }
 
-    public boolean isAnyCastingSkill() { return attackState != AttackState.IDLE; }
+    public boolean isAnyCastingSkill()  { return attackState != AttackState.IDLE; }
+
+    public boolean isPlayingSkillAnim() { return attackState == AttackState.SKILL; }
+
+    public boolean isWalkingBack()      { return attackState == AttackState.WALKING_BACK; }
+
+    public boolean isAtHome()           { return attackState == AttackState.IDLE; }
+
     public boolean hasSkill1()         { return skill1 != null; }
     public boolean hasSkill2()         { return skill2 != null; }
     public boolean hasSkill3()         { return skill3 != null; }
+
     public boolean isCastingSkill1()   { return skill1 != null && skill1.isActive(); }
     public boolean isCastingSkill2()   { return skill2 != null && skill2.isActive(); }
     public boolean isCastingSkill3()   { return skill3 != null && skill3.isActive(); }
 
-    // ── Update ────────────────────────────────────────────────────────────────
     @Override
     public void update() {
         switch (attackState) {
@@ -252,7 +251,6 @@ public class Character extends GameEntity {
             currentFrame = arr[0];
     }
 
-    // ── Draw ──────────────────────────────────────────────────────────────────
     @Override
     public void draw(Graphics g, ImageObserver observer) {
         Graphics2D g2 = (Graphics2D) g;

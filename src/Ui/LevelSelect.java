@@ -30,7 +30,9 @@ public class LevelSelect extends JPanel implements KeyListener, MouseListener, M
     private int lbFontSize;
 
     public LevelSelect() {
+
         loadAssets();
+        MusicPlayer.playMenu();
         setFocusable(true);
         addKeyListener(this);
         addMouseListener(this);

@@ -3,7 +3,6 @@ package entities;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 
-
 public class SkillData {
 
     private final ArrayList<BufferedImage> frames;
@@ -15,15 +14,34 @@ public class SkillData {
 
     private int drawY;
 
+    // ── Sound ─────────────────────────────────────────────────────────────────
+    // Set by Character right after construction so SkillData knows what to play.
+    private String charName  = null;
+    private int    skillNum  = 0;
+
     public SkillData(ArrayList<BufferedImage> frames, int animSpeed) {
         this.frames    = frames;
         this.animSpeed = animSpeed;
+    }
+
+    /**
+     * Called once by Character after building each SkillData so the sound
+     * player knows which clip to fire.
+     */
+    public void setSoundInfo(String charName, int skillNum) {
+        this.charName = charName;
+        this.skillNum = skillNum;
     }
 
     public void activate() {
         active            = true;
         currentFrameIndex = 0;
         animTick          = 0;
+
+        // Play the hit sound the instant the skill animation starts.
+        if (charName != null && skillNum > 0) {
+            Ui.SkillSoundPlayer.play(charName, skillNum);
+        }
     }
 
     public void deactivate() {

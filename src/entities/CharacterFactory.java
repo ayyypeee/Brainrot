@@ -22,7 +22,6 @@ public class CharacterFactory {
         registerAllCharacters();
     }
 
-    // ── Helper ────────────────────────────────────────────────────────────────
     private static String[] walkFrames(String base) {
         return new String[]{
                 "/characters/walk_png/" + base + ".png",
@@ -32,7 +31,6 @@ public class CharacterFactory {
         };
     }
 
-    // ── Registration ──────────────────────────────────────────────────────────
     private void registerAllCharacters() {
 
         // ── AIP ───────────────────────────────────────────────────────────────
@@ -229,7 +227,6 @@ public class CharacterFactory {
                 }, "Explosion", new int[]{360, 372, 115, 115});
     }
 
-    // ── Internal add ──────────────────────────────────────────────────────────
     private void add(String name, String idleGif, String headPath,
                      String[] walkPaths,
                      String[] sk1, String sk1Name, int[] sk1Icon,
@@ -244,7 +241,6 @@ public class CharacterFactory {
         skill3Paths.add(sk3); skill3Names.add(sk3Name); skill3IconRect.add(sk3Icon);
     }
 
-    // ── Public getters ────────────────────────────────────────────────────────
     public int      getCount()            { return names.size(); }
     public String   getName(int i)        { return names.get(i); }
     public String   getIdleGifPath(int i) { return idleGifPaths.get(i); }
@@ -260,12 +256,13 @@ public class CharacterFactory {
     public String[] getSkill2Paths(int i) { return skill2Paths.get(i); }
     public String[] getSkill3Paths(int i) { return skill3Paths.get(i); }
 
-    // ── Build ─────────────────────────────────────────────────────────────────
+    // ── THE KEY FIX: pass the character name as the first argument ────────────
     public Character buildCharacter(int index, Class<?> loader, int screenW, int screenH) {
         int charH = (int)(screenH * 0.28);
         int charW = (int)(charH  * 0.57);
 
         return new Character(
+                names.get(index),          // charName — so SkillData gets setSoundInfo called
                 walkFramePaths.get(index),
                 charW, charH,
                 idleGifPaths.get(index),

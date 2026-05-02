@@ -2,19 +2,28 @@ package Ui;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.HashMap;
+import java.util.Map;
+import javax.imageio.ImageIO;
 
 
 public class SkillButton {
 
     private Rectangle bounds;
-    private final String    label;       // skill name from CharSkillDB
-    private boolean   hovered;
-    private boolean   disabled;
-    private final int       skillNum;
+    private final String  label;       // skill name from CharSkillDB
+    private boolean       hovered;
+    private boolean       disabled;
+    private final int     skillNum;
 
     // Optional mana info — set by the battle panels after construction
-    private String  manaLabel  = "";     // e.g. "+15 MP" or "-20 MP"
-    private boolean isManaRegen = false; // true → blue, false → red/grey
+    private String  manaLabel   = "";
+    private boolean isManaRegen = false;
+
+    // Icon image resource path
+    private String iconPath = null;
+
+    // Static cache so each icon is only loaded once per JVM session
+    private static final Map<String, BufferedImage> ICON_CACHE = new HashMap<>();
 
     public SkillButton(int skillNum, String label) {
         this.skillNum = skillNum;
@@ -31,8 +40,36 @@ public class SkillButton {
     public Rectangle getBounds()            { return bounds; }
 
     public void setManaInfo(String label, boolean isRegen) {
-        this.manaLabel   = label  != null ? label : "";
+        this.manaLabel   = label != null ? label : "";
         this.isManaRegen = isRegen;
+    }
+
+    /**
+     * Sets the resource path for the skill icon image, e.g.:
+     *   btn1.setIconPath(skills[0].iconPath);
+     */
+    public void setIconPath(String path) {
+        this.iconPath = path;
+    }
+
+    /** Loads (and caches) the icon image. Returns null if unavailable. */
+    private BufferedImage loadIcon() {
+        if (iconPath == null || iconPath.isEmpty()) return null;
+        if (ICON_CACHE.containsKey(iconPath)) return ICON_CACHE.get(iconPath);
+        try {
+            java.net.URL url = getClass().getResource(iconPath);
+            if (url == null) {
+                ICON_CACHE.put(iconPath, null);
+                return null;
+            }
+            BufferedImage img = ImageIO.read(url);
+            ICON_CACHE.put(iconPath, img);
+            return img;
+        } catch (Exception e) {
+            System.out.println("SkillButton: could not load icon at " + iconPath);
+            ICON_CACHE.put(iconPath, null);
+            return null;
+        }
     }
 
     public void draw(Graphics2D g2, BufferedImage boxImage, Component obs) {
@@ -87,19 +124,32 @@ public class SkillButton {
         g2.drawRect(iconX, iconY, iconSize, iconSize);
         g2.setStroke(new BasicStroke(1));
 
-        // Skill number centred inside icon box
-        int numFontSize = Math.max(10, (int)(iconSize * 0.55));
-        g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, numFontSize));
-        g2.setColor(disabled ? new Color(90, 70, 40) : new Color(255, 230, 140));
-        String sym = String.valueOf(skillNum);
-        FontMetrics pfm = g2.getFontMetrics();
-        g2.drawString(sym,
-                iconX + (iconSize - pfm.stringWidth(sym)) / 2,
-                iconY + (iconSize + pfm.getAscent() - pfm.getDescent()) / 2);
+        // ── Icon image (or fallback number) ───────────────────────────────────
+        BufferedImage icon = loadIcon();
+        if (icon != null) {
+            if (disabled) {
+                Composite orig = g2.getComposite();
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.45f));
+                g2.drawImage(icon, iconX + 2, iconY + 2, iconSize - 4, iconSize - 4, obs);
+                g2.setComposite(orig);
+            } else {
+                g2.drawImage(icon, iconX + 2, iconY + 2, iconSize - 4, iconSize - 4, obs);
+            }
+        } else {
+            // Fallback: draw skill number centred in the icon box
+            int numFontSize = Math.max(10, (int)(iconSize * 0.55));
+            g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, numFontSize));
+            g2.setColor(disabled ? new Color(90, 70, 40) : new Color(255, 230, 140));
+            String sym = String.valueOf(skillNum);
+            FontMetrics pfm = g2.getFontMetrics();
+            g2.drawString(sym,
+                    iconX + (iconSize - pfm.stringWidth(sym)) / 2,
+                    iconY + (iconSize + pfm.getAscent() - pfm.getDescent()) / 2);
+        }
 
         // ── Text block (right of icon) ────────────────────────────────────────
-        int textX  = iconX + iconSize + pad;
-        int textW  = (x + w) - textX - pad;
+        int textX = iconX + iconSize + pad;
+        int textW = (x + w) - textX - pad;
 
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                 RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
@@ -111,7 +161,7 @@ public class SkillButton {
         int totalTextH = headerSize + 4 + nameSize + 4 + manaSize;
         int textStartY = y + (h - totalTextH) / 2 + headerSize;
 
-        // Row 1: "SKILL N" label
+        // Row 1: "Skill N"
         g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, headerSize));
         g2.setColor(disabled ? new Color(90, 70, 40) : new Color(50, 25, 0));
         g2.drawString("Skill " + skillNum, textX, textStartY);
@@ -138,9 +188,9 @@ public class SkillButton {
             if (disabled && !isManaRegen) {
                 g2.setColor(new Color(100, 70, 70));
             } else if (isManaRegen) {
-                g2.setColor(new Color(80, 190, 255));   // blue for regen
+                g2.setColor(new Color(80, 190, 255));
             } else {
-                g2.setColor(new Color(255, 110, 110));  // red for cost
+                g2.setColor(new Color(255, 110, 110));
             }
             g2.drawString(manaStr, textX, row3Y);
         }

@@ -6,13 +6,11 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
-import java.io.IOException;
 
 public class TitleScreen extends JPanel implements KeyListener, MouseListener, MouseMotionListener {
 
     private JFrame window;
     private BufferedImage bgImage;
-    private Clip bgMusic;
 
     private BufferedImage startImg;
     private BufferedImage aboutImg;
@@ -37,7 +35,8 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
 
     public TitleScreen() {
         loadImages();
-        playMusic("/audio/bgMusic2.wav");
+
+        MusicPlayer.playMenu();
 
         setFocusable(true);
         addKeyListener(this);
@@ -58,19 +57,16 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
             window.setVisible(true);
         }
 
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                calculateLayout();
-                layoutReady = true;
-                repaint();
-            }
+        SwingUtilities.invokeLater(() -> {
+            calculateLayout();
+            layoutReady = true;
+            repaint();
         });
 
         requestFocusInWindow();
     }
 
     private void loadImages() {
-
         String[] bgPaths = {
                 "/backgrounds/FINAL_TITLE_SCREEN.png",
                 "/backgrounds/finalbg.png",
@@ -79,16 +75,8 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
                 "/finalbg.png"
         };
         for (String path : bgPaths) {
-            try {
-                bgImage = ImageIO.read(getClass().getResource(path));
-                System.out.println("BG loaded from: " + path);
-                break;
-            } catch (Exception e) {
-                // try next
-            }
-        }
-        if (bgImage == null) {
-            System.out.println("WARNING: Background image not found. Tried all paths.");
+            try { bgImage = ImageIO.read(getClass().getResource(path)); break; }
+            catch (Exception e) {}
         }
 
         String[] startPaths = {"/ui/v1_start_button.png", "/v1_start_button.png", "/backgrounds/v1_start_button.png"};
@@ -111,41 +99,17 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
     }
 
     private void calculateLayout() {
-        int sw = getWidth();
-        int sh = getHeight();
-
+        int sw = getWidth(), sh = getHeight();
         btnH = (int)(sh * 0.09);
         btnW = (int)(btnH * (447.0 / 143.0));
-
         btn1X = (sw - btnW) / 2;
-
-        int gap   = (int)(sh * 0.025);
+        int gap = (int)(sh * 0.025);
         btn1Y = (int)(sh * 0.55);
         btn2Y = btn1Y + btnH + gap;
         btn3Y = btn2Y + btnH + gap;
-
         startRect.setBounds(btn1X, btn1Y, btnW, btnH);
         aboutRect.setBounds(btn1X, btn2Y, btnW, btnH);
-        exitRect.setBounds( btn1X, btn3Y, btnW, btnH);
-    }
-
-    private void playMusic(String path) {
-        try {
-            AudioInputStream as = AudioSystem.getAudioInputStream(getClass().getResource(path));
-            bgMusic = AudioSystem.getClip();
-            bgMusic.open(as);
-            bgMusic.loop(Clip.LOOP_CONTINUOUSLY);
-            bgMusic.start();
-        } catch (Exception e) {
-            System.out.println("Music error: " + e.getMessage());
-        }
-    }
-
-    private void stopMusic() {
-        if (bgMusic != null && bgMusic.isRunning()) {
-            bgMusic.stop();
-            bgMusic.close();
-        }
+        exitRect .setBounds(btn1X, btn3Y, btnW, btnH);
     }
 
     private void exitFullScreen() {
@@ -157,17 +121,12 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                RenderingHints.VALUE_ANTIALIAS_ON);
-
-        // Draw background stretched to fill the entire screen
         if (bgImage != null) {
             g2.drawImage(bgImage, 0, 0, getWidth(), getHeight(), this);
         } else {
-            // Fallback dark green if image missing
             g2.setColor(new Color(8, 28, 16));
             g2.fillRect(0, 0, getWidth(), getHeight());
             g2.setColor(Color.WHITE);
@@ -175,7 +134,6 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
             g2.drawString("Background image not found — check console", 40, 40);
         }
 
-        // Draw buttons
         if (layoutReady) {
             drawButton(g2, startImg, startRect, hoverStart);
             drawButton(g2, aboutImg, aboutRect, hoverAbout);
@@ -183,31 +141,23 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
         }
     }
 
-    private void drawButton(Graphics2D g2, BufferedImage img,
-                            Rectangle rect, boolean hovered) {
+    private void drawButton(Graphics2D g2, BufferedImage img, Rectangle rect, boolean hovered) {
         if (img == null) return;
-
         int dx = hovered ? (int)(rect.width * 0.04) : 0;
         int dy = hovered ? (int)(rect.height * 0.04) : 0;
-        int drawX = rect.x - dx / 2;
-        int drawY = rect.y - dy / 2;
-        int drawW = rect.width  + dx;
-        int drawH = rect.height + dy;
+        int drawX = rect.x - dx / 2, drawY = rect.y - dy / 2;
+        int drawW = rect.width + dx,  drawH = rect.height + dy;
 
         if (hovered) {
             for (int i = 6; i >= 1; i--) {
                 float a = 0.06f * i;
                 g2.setColor(new Color(100, 255, 150, (int)(a * 255)));
-                g2.fillRoundRect(drawX - i * 3, drawY - i * 2,
-                        drawW + i * 6, drawH + i * 4, 20, 20);
+                g2.fillRoundRect(drawX - i * 3, drawY - i * 2, drawW + i * 6, drawH + i * 4, 20, 20);
             }
         }
 
-        g2.drawImage(img,
-                drawX, drawY, drawX + drawW, drawY + drawH,
-                BTN_SRC_X, BTN_SRC_Y,
-                BTN_SRC_X + BTN_SRC_W, BTN_SRC_Y + BTN_SRC_H,
-                this);
+        g2.drawImage(img, drawX, drawY, drawX + drawW, drawY + drawH,
+                BTN_SRC_X, BTN_SRC_Y, BTN_SRC_X + BTN_SRC_W, BTN_SRC_Y + BTN_SRC_H, this);
     }
 
     @Override
@@ -215,51 +165,38 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
         hoverStart = startRect.contains(e.getPoint());
         hoverAbout = aboutRect.contains(e.getPoint());
         hoverExit  = exitRect.contains(e.getPoint());
-        setCursor(
-                (hoverStart || hoverAbout || hoverExit)
-                        ? new Cursor(Cursor.HAND_CURSOR)
-                        : new Cursor(Cursor.DEFAULT_CURSOR)
-        );
+        setCursor((hoverStart || hoverAbout || hoverExit)
+                ? new Cursor(Cursor.HAND_CURSOR) : new Cursor(Cursor.DEFAULT_CURSOR));
         repaint();
     }
 
     @Override
     public void mouseClicked(MouseEvent e) {
-        if (startRect.contains(e.getPoint())) {
-            handleStart();
-        } else if (aboutRect.contains(e.getPoint())) {
-            handleAbout();
-        } else if (exitRect.contains(e.getPoint())) {
-            handleExit();
-        }
+        if      (startRect.contains(e.getPoint())) handleStart();
+        else if (aboutRect.contains(e.getPoint())) handleAbout();
+        else if (exitRect.contains(e.getPoint()))  handleExit();
     }
 
     @Override
     public void keyPressed(KeyEvent e) {
-        if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-            handleStart();
-        } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
-            handleExit();
-        }
+        if      (e.getKeyCode() == KeyEvent.VK_ENTER)  handleStart();
+        else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) handleExit();
     }
 
     private void handleStart() {
-        stopMusic();
+        // Music keeps playing — do NOT stop it here.
         exitFullScreen();
         window.dispose();
         new LevelSelect();
     }
 
     private void handleAbout() {
-        JOptionPane.showMessageDialog(window,
-
-                        "  binchilling",
-                "About", JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(window, "  binchilling", "About", JOptionPane.INFORMATION_MESSAGE);
         requestFocusInWindow();
     }
 
     private void handleExit() {
-        stopMusic();
+        MusicPlayer.stop();
         System.exit(0);
     }
 

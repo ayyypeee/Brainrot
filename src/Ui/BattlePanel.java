@@ -38,6 +38,11 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
     private JFrame window;
     private Timer gameTimer;
 
+    private PauseMenuOverlay pauseMenu;
+
+    // ── Restart action ────────────────────────────────────────────────────────
+    private final Runnable restartAction;
+
     public BattlePanel(Character p1, Character p2,
                        String p1HeadPath, String p2HeadPath,
                        String p1Sk1, String p1Sk2, String p1Sk3,
@@ -45,18 +50,24 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
                        int[] r1, int[] r2, int[] r3,
                        int[] r4, int[] r5, int[] r6,
                        String p1CharName, String p2CharName,
-                       Class<?> loader) {
+                       Class<?> loader,
+                       Runnable restartAction) {
 
         this.p1 = p1;
         this.p2 = p2;
         this.p1CharName = p1CharName;
         this.p2CharName = p2CharName;
+        this.restartAction = restartAction;
+        MusicPlayer.stop();
 
         engine = new BattleEngine(p1CharName, "Player 1", p2CharName, "Player 2");
+        MusicPlayer.playIngame();
 
         loadAssets(p1HeadPath, p2HeadPath, loader);
         p1.setImageObserver(this);
         p2.setImageObserver(this);
+
+        pauseMenu = new PauseMenuOverlay(loader);
 
         setFocusable(true);
         addMouseListener(this);
@@ -77,7 +88,6 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
         try { boxImage = ImageIO.read(loader.getResource("/ui/v1_box_skills.png")); } catch (Exception e) {}
         try { vsImage = ImageIO.read(loader.getResource("/ui/vs.png")); } catch (Exception e) {}
         try { platformImage = ImageIO.read(loader.getResource("/level_assets/PLATFORM.png")); } catch (Exception e) {}
-
         if (h1 != null) try { engine.head1 = ImageIO.read(loader.getResource(h1)); } catch (Exception e) {}
         if (h2 != null) try { engine.head2 = ImageIO.read(loader.getResource(h2)); } catch (Exception e) {}
     }
@@ -113,14 +123,17 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
         btn1 = new SkillButton(1, n1);
         btn1.setBounds(startX, btnY, btnW, btnH);
         btn1.setManaInfo("+" + (skills.length > 0 ? skills[0].manaRegen : 15) + " MP", true);
+        btn1.setIconPath(skills.length > 0 ? skills[0].iconPath : null);
 
         btn2 = new SkillButton(2, n2);
         btn2.setBounds(startX + btnW + gap, btnY, btnW, btnH);
         btn2.setManaInfo("-" + (skills.length > 1 ? skills[1].manaCost : 20) + " MP", false);
+        btn2.setIconPath(skills.length > 1 ? skills[1].iconPath : null);
 
         btn3 = new SkillButton(3, n3);
         btn3.setBounds(startX + (btnW + gap) * 2, btnY, btnW, btnH);
         btn3.setManaInfo("-" + (skills.length > 2 ? skills[2].manaCost : 35) + " MP", false);
+        btn3.setIconPath(skills.length > 2 ? skills[2].iconPath : null);
     }
 
     private void setupWindow() {
@@ -133,6 +146,36 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
         else { window.setExtendedState(JFrame.MAXIMIZED_BOTH); window.setVisible(true); }
     }
 
+    // ── Pause toggle ──────────────────────────────────────────────────────────
+    private void togglePause() {
+        paused = !paused;
+        if (paused) {
+            gameTimer.stop();
+            pauseMenu.reset();
+        } else {
+            gameTimer.start();
+        }
+        repaint();
+    }
+
+    private PauseMenuOverlay.Callbacks pauseCallbacks() {
+        return new PauseMenuOverlay.Callbacks() {
+            @Override public void onResume()   { togglePause(); }
+            @Override public void onRestart()  {
+                gameTimer.stop();
+                window.dispose();
+                restartAction.run();
+            }
+            @Override public void onMainMenu() {
+                gameTimer.stop();
+                window.dispose();
+                new LevelSelect();
+            }
+            @Override public void onExit() { System.exit(0); }
+        };
+    }
+
+    // ── Game loop ─────────────────────────────────────────────────────────────
     private void update() {
         if (gameOver || paused) return;
 
@@ -206,13 +249,19 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
 
         engine.beginTurn(engine.turnSide);
 
+        // ── NEW: tick effects AFTER stun check so applied effects survive one round ──
         if (engine.isSideStunned(engine.turnSide)) {
             String sName = engine.turnSide == 1 ? engine.label1 : engine.label2;
             engine.enqueueDialogue(sName + " is stunned and has to skip their turn!");
             engine.consumeStun(engine.turnSide);
+            // Tick effects for the stunned side, then end their skipped turn
+            engine.tickEffectsForSide(engine.turnSide);
             engine.endTurn(engine.turnSide);
             engine.beginTurn(engine.turnSide);
         }
+
+        // Tick effects for whoever is now the active side
+        engine.tickEffectsForSide(engine.turnSide);
 
         switchButtons();
 
@@ -262,11 +311,12 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
             int c = JOptionPane.showConfirmDialog(window,
                     winner + "\n\nPlay again?",
                     "Game Over", JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE);
-            if (c == JOptionPane.YES_OPTION) { window.dispose(); new CharacterSelect(); }
+            if (c == JOptionPane.YES_OPTION) { window.dispose(); restartAction.run(); }
             else { window.dispose(); new LevelSelect(); }
         }) {{ setRepeats(false); start(); }};
     }
 
+    // ── Paint ─────────────────────────────────────────────────────────────────
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -306,8 +356,9 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
         if (!engine.isDialogueActive() && !gameOver && phase == Phase.IDLE)
             drawTurnLabel(g2, sw, sh);
 
-        if (paused) drawPauseOverlay(g2, sw, sh);
         if (gameOver) drawGameOverOverlay(g2, sw, sh);
+
+        if (paused) pauseMenu.draw(g2, sw, sh);
     }
 
     private void drawGround(Graphics2D g2, int sw, int sh) {
@@ -345,16 +396,6 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
         }
     }
 
-    private void drawPauseOverlay(Graphics2D g2, int sw, int sh) {
-        g2.setColor(new Color(0, 0, 0, 130));
-        g2.fillRect(0, 0, sw, sh);
-        int fs = Math.max(40, (int)(sh * 0.09));
-        g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, fs));
-        g2.setColor(new Color(255, 220, 80));
-        String s = "PAUSED";
-        g2.drawString(s, sw / 2 - g2.getFontMetrics().stringWidth(s) / 2, sh / 2);
-    }
-
     private void drawGameOverOverlay(Graphics2D g2, int sw, int sh) {
         g2.setColor(new Color(0, 0, 0, 160));
         g2.fillRect(0, 0, sw, sh);
@@ -378,9 +419,15 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
         phase = Phase.APPROACHING;
     }
 
+    // ── Mouse ─────────────────────────────────────────────────────────────────
     @Override
     public void mouseClicked(MouseEvent e) {
-        if (gameOver || paused || !layoutReady) return;
+        if (paused) {
+            pauseMenu.handleClick(e.getPoint(), pauseCallbacks());
+            repaint();
+            return;
+        }
+        if (gameOver || !layoutReady) return;
         if (engine.isDialogueActive()) { engine.advanceDialogue(); repaint(); return; }
         if (phase != Phase.IDLE) return;
         Point pt = e.getPoint();
@@ -390,8 +437,23 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
     }
 
     @Override
+    public void mousePressed(MouseEvent e) {
+        if (paused) { pauseMenu.handleMousePressed(e.getPoint()); repaint(); }
+    }
+
+    @Override
+    public void mouseReleased(MouseEvent e) {
+        if (paused) pauseMenu.handleRelease();
+    }
+
+    @Override
     public void mouseMoved(MouseEvent e) {
         mousePos = e.getPoint();
+        if (paused) {
+            pauseMenu.handleHover(e.getPoint());
+            repaint();
+            return;
+        }
         hoveredSkill = btn1 != null && btn1.getBounds().contains(mousePos) ? 1
                 : btn2 != null && btn2.getBounds().contains(mousePos) ? 2
                 : btn3 != null && btn3.getBounds().contains(mousePos) ? 3 : 0;
@@ -403,31 +465,24 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
     }
 
     @Override
+    public void mouseDragged(MouseEvent e) {
+        if (paused) { pauseMenu.handleDrag(e.getPoint()); repaint(); }
+    }
+
+    // ── Keys ──────────────────────────────────────────────────────────────────
+    @Override
     public void keyPressed(KeyEvent e) {
         int k = e.getKeyCode();
         if (k == KeyEvent.VK_ENTER || k == KeyEvent.VK_SPACE) {
+            if (paused) return;
             if (engine.isDialogueActive()) { engine.advanceDialogue(); repaint(); }
         } else if (k == KeyEvent.VK_ESCAPE) {
-            showEscMenu();
+            if (!gameOver) togglePause();
         }
     }
 
-    private void showEscMenu() {
-        if (gameOver) return;
-        boolean wasRunning = !paused;
-        if (wasRunning) { paused = true; gameTimer.stop(); }
-        Object[] opts = { "Continue", "Main Menu" };
-        int c = JOptionPane.showOptionDialog(window, "Paused", "Pause",
-                JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, opts, opts[0]);
-        if (c == 0 || c < 0) { paused = false; gameTimer.start(); }
-        else { gameTimer.stop(); window.dispose(); new LevelSelect(); }
-    }
-
-    @Override public void mousePressed(MouseEvent e) {}
-    @Override public void mouseReleased(MouseEvent e) {}
     @Override public void mouseEntered(MouseEvent e) {}
     @Override public void mouseExited(MouseEvent e) {}
-    @Override public void mouseDragged(MouseEvent e) {}
     @Override public void keyReleased(KeyEvent e) {}
     @Override public void keyTyped(KeyEvent e) {}
 }

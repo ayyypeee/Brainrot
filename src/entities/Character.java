@@ -33,7 +33,11 @@ public class Character extends GameEntity {
 
     private ImageIcon idleGif;
 
-    public Character(String[] framePaths,
+    // The character name is stored so we can pass it to each SkillData.
+    private final String charName;
+
+    public Character(String charName,
+                     String[] framePaths,
                      int charW, int charH,
                      String idleGifPath,
                      String[] sk1Paths,
@@ -42,15 +46,37 @@ public class Character extends GameEntity {
                      Class<?> loader) {
 
         super(0, 0, charW, charH, 5);
+        this.charName = charName;
 
         if (framePaths != null && framePaths.length > 0)
             loadFrames(framePaths, loader);
 
         loadIdleGif(idleGifPath, loader);
 
-        if (sk1Paths != null && sk1Paths.length > 0) skill1 = loadSkillFrames(sk1Paths, loader);
-        if (sk2Paths != null && sk2Paths.length > 0) skill2 = loadSkillFrames(sk2Paths, loader);
-        if (sk3Paths != null && sk3Paths.length > 0) skill3 = loadSkillFrames(sk3Paths, loader);
+        if (sk1Paths != null && sk1Paths.length > 0) {
+            skill1 = loadSkillFrames(sk1Paths, loader);
+            if (skill1 != null) skill1.setSoundInfo(charName, 1);
+        }
+        if (sk2Paths != null && sk2Paths.length > 0) {
+            skill2 = loadSkillFrames(sk2Paths, loader);
+            if (skill2 != null) skill2.setSoundInfo(charName, 2);
+        }
+        if (sk3Paths != null && sk3Paths.length > 0) {
+            skill3 = loadSkillFrames(sk3Paths, loader);
+            if (skill3 != null) skill3.setSoundInfo(charName, 3);
+        }
+    }
+
+    // ── Backward-compatible constructor (no charName) — kept so nothing else breaks ──
+    public Character(String[] framePaths,
+                     int charW, int charH,
+                     String idleGifPath,
+                     String[] sk1Paths,
+                     String[] sk2Paths,
+                     String[] sk3Paths,
+                     Class<?> loader) {
+        this(null, framePaths, charW, charH, idleGifPath,
+                sk1Paths, sk2Paths, sk3Paths, loader);
     }
 
     private void loadFrames(String[] paths, Class<?> loader) {
@@ -141,11 +167,8 @@ public class Character extends GameEntity {
     }
 
     public boolean isAnyCastingSkill()  { return attackState != AttackState.IDLE; }
-
     public boolean isPlayingSkillAnim() { return attackState == AttackState.SKILL; }
-
     public boolean isWalkingBack()      { return attackState == AttackState.WALKING_BACK; }
-
     public boolean isAtHome()           { return attackState == AttackState.IDLE; }
 
     public boolean hasSkill1()         { return skill1 != null; }
@@ -165,7 +188,7 @@ public class Character extends GameEntity {
                 int dx = targetX - x;
                 if (Math.abs(dx) <= ATTACK_WALK_SPEED) {
                     x = targetX;
-                    fireSkill(pendingSkill);
+                    fireSkill(pendingSkill);   // <-- sound fires here via SkillData.activate()
                     attackState = AttackState.SKILL;
                     walkFrameIndex = 0;
                 } else {

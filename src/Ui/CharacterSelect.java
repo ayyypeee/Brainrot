@@ -39,6 +39,7 @@ public class CharacterSelect extends JPanel implements KeyListener {
         loadBackground();
         loadFrames();
         loadAllIdleGifs();
+        MusicPlayer.playCharSelect();
         setFocusable(true);
         addKeyListener(this);
         setupWindow();
@@ -94,9 +95,9 @@ public class CharacterSelect extends JPanel implements KeyListener {
     private void setupWindow() {
         String title;
         switch (mode) {
-            case VS_AI: title = "vs Computer"; break;
-            case ARCADE: title = "Arcade"; break;
-            default: title = "Player vs Player"; break;
+            case VS_AI:  title = "vs Computer"; break;
+            case ARCADE: title = "Arcade";      break;
+            default:     title = "Player vs Player"; break;
         }
         window = new JFrame(title);
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -107,6 +108,7 @@ public class CharacterSelect extends JPanel implements KeyListener {
         else { window.setExtendedState(JFrame.MAXIMIZED_BOTH); window.setVisible(true); }
     }
 
+    // ── Paint ─────────────────────────────────────────────────────────────────
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -185,7 +187,6 @@ public class CharacterSelect extends JPanel implements KeyListener {
             drawBadge(g2, i, cx, cy);
 
             g2.setFont(font(Font.BOLD, nameFontSize));
-            g2.setColor(i == selectedIndex ? Color.YELLOW : Color.WHITE);
             String name = factory.getName(i);
             int nx = cx + (cellSize - g2.getFontMetrics().stringWidth(name)) / 2;
             int ny = cy + cellSize + nameFontSize + (int)(sh * 0.006);
@@ -224,96 +225,134 @@ public class CharacterSelect extends JPanel implements KeyListener {
                 cy + labelFontSize + 4);
     }
 
+    // ── Keyboard ──────────────────────────────────────────────────────────────
     @Override
     public void keyPressed(KeyEvent e) {
         int key = e.getKeyCode();
-        if (key == KeyEvent.VK_RIGHT || key == KeyEvent.VK_D) { if (selectedIndex % COLS < COLS - 1) selectedIndex++; }
-        else if (key == KeyEvent.VK_LEFT || key == KeyEvent.VK_A) { if (selectedIndex % COLS > 0) selectedIndex--; }
-        else if (key == KeyEvent.VK_DOWN || key == KeyEvent.VK_S) { if (selectedIndex + COLS < factory.getCount()) selectedIndex += COLS; }
-        else if (key == KeyEvent.VK_UP || key == KeyEvent.VK_W) { if (selectedIndex - COLS >= 0) selectedIndex -= COLS; }
-        else if (key == KeyEvent.VK_ENTER) confirmSelection();
-        else if (key == KeyEvent.VK_ESCAPE) { window.dispose(); new LevelSelect(); }
+
+        if (key == KeyEvent.VK_RIGHT || key == KeyEvent.VK_D) {
+            if (selectedIndex % COLS < COLS - 1) selectedIndex++;
+        } else if (key == KeyEvent.VK_LEFT || key == KeyEvent.VK_A) {
+            if (selectedIndex % COLS > 0) selectedIndex--;
+        } else if (key == KeyEvent.VK_DOWN || key == KeyEvent.VK_S) {
+            if (selectedIndex + COLS < factory.getCount()) selectedIndex += COLS;
+        } else if (key == KeyEvent.VK_UP || key == KeyEvent.VK_W) {
+            if (selectedIndex - COLS >= 0) selectedIndex -= COLS;
+        } else if (key == KeyEvent.VK_ENTER) {
+            confirmSelection();
+            return;
+        } else if (key == KeyEvent.VK_ESCAPE) {
+            CharacterVoicePlayer.stopCurrent();
+            window.dispose();
+            new LevelSelect();
+            return;
+        }
+
         repaint();
     }
 
+    // ── Confirm / launch ──────────────────────────────────────────────────────
     private void confirmSelection() {
         switch (mode) {
-            case PVP: confirmPvP(); break;
-            case VS_AI: confirmVsAI(); break;
+            case PVP:    confirmPvP();    break;
+            case VS_AI:  confirmVsAI();  break;
             case ARCADE: confirmArcade(); break;
         }
     }
 
+    // ── PvP ───────────────────────────────────────────────────────────────────
     private void confirmPvP() {
         if (pickingPlayer == 1) {
             p1Index = selectedIndex;
+            CharacterVoicePlayer.play(factory.getName(p1Index));
             pickingPlayer = 2;
             selectedIndex = 0;
             if (selectedIndex == p1Index) selectedIndex = 1;
             repaint();
         } else {
             if (selectedIndex == p1Index) return;
-            launchPvP(p1Index, selectedIndex);
+            CharacterVoicePlayer.play(factory.getName(selectedIndex));
+            final int idx2 = selectedIndex;
+            Timer t = new Timer(2000, e -> launchPvP(p1Index, idx2));
+            t.setRepeats(false);
+            t.start();
         }
     }
 
     private void launchPvP(int idx1, int idx2) {
         int sw = getWidth(), sh = getHeight();
+        CharacterVoicePlayer.stopCurrent();
         window.dispose();
 
         Character p1 = factory.buildCharacter(idx1, getClass(), sw, sh);
         Character p2 = factory.buildCharacter(idx2, getClass(), sw, sh);
 
-        String p1Name = factory.getName(idx1);
-        String p2Name = factory.getName(idx2);
-
         new BattlePanel(
                 p1, p2,
-                factory.getHeadPath(idx1),
-                factory.getHeadPath(idx2),
+                factory.getHeadPath(idx1), factory.getHeadPath(idx2),
                 factory.getSkill1Name(idx1), factory.getSkill2Name(idx1), factory.getSkill3Name(idx1),
                 factory.getSkill1Name(idx2), factory.getSkill2Name(idx2), factory.getSkill3Name(idx2),
                 factory.getSkill1Icon(idx1), factory.getSkill2Icon(idx1), factory.getSkill3Icon(idx1),
                 factory.getSkill1Icon(idx2), factory.getSkill2Icon(idx2), factory.getSkill3Icon(idx2),
-                p1Name,
-                p2Name,
-                getClass()
+                factory.getName(idx1),
+                factory.getName(idx2),
+                getClass(),
+                () -> launchPvP(idx1, idx2)   // restart reruns the exact same fight
         );
     }
 
+    // ── VS AI ─────────────────────────────────────────────────────────────────
     private void confirmVsAI() {
         if (playerIndex == -1) {
             playerIndex = selectedIndex;
+            CharacterVoicePlayer.play(factory.getName(playerIndex));
             selectedIndex = 0;
             if (selectedIndex == playerIndex) selectedIndex = 1;
             repaint();
         } else {
             if (selectedIndex == playerIndex) return;
-            launchVsAI(playerIndex, selectedIndex);
+            CharacterVoicePlayer.play(factory.getName(selectedIndex));
+            final int aiIdx = selectedIndex;
+            Timer t = new Timer(2000, e -> launchVsAI(playerIndex, aiIdx));
+            t.setRepeats(false);
+            t.start();
         }
     }
 
     private void launchVsAI(int humanIdx, int aiIdx) {
         int sw = getWidth(), sh = getHeight();
+        CharacterVoicePlayer.stopCurrent();
         window.dispose();
+
         Character humanChar = factory.buildCharacter(humanIdx, getClass(), sw, sh);
-        Character aiChar = factory.buildCharacter(aiIdx, getClass(), sw, sh);
+        Character aiChar    = factory.buildCharacter(aiIdx,   getClass(), sw, sh);
+
         new AIBattlePanel(
                 humanChar, aiChar,
                 factory.getHeadPath(humanIdx), factory.getHeadPath(aiIdx),
                 factory.getSkill1Name(humanIdx), factory.getSkill2Name(humanIdx), factory.getSkill3Name(humanIdx),
-                factory.getSkill1Name(aiIdx), factory.getSkill2Name(aiIdx), factory.getSkill3Name(aiIdx),
+                factory.getSkill1Name(aiIdx),   factory.getSkill2Name(aiIdx),   factory.getSkill3Name(aiIdx),
                 factory.getSkill1Icon(humanIdx), factory.getSkill2Icon(humanIdx), factory.getSkill3Icon(humanIdx),
-                factory.getSkill1Icon(aiIdx), factory.getSkill2Icon(aiIdx), factory.getSkill3Icon(aiIdx),
+                factory.getSkill1Icon(aiIdx),   factory.getSkill2Icon(aiIdx),   factory.getSkill3Icon(aiIdx),
                 factory.getName(humanIdx),
                 factory.getName(aiIdx),
-                getClass()
+                getClass(),
+                () -> launchVsAI(humanIdx, aiIdx)   // restart reruns the exact same fight
         );
     }
 
+    // ── Arcade ────────────────────────────────────────────────────────────────
     private void confirmArcade() {
-        int playerIdx = selectedIndex;
+        CharacterVoicePlayer.play(factory.getName(selectedIndex));
+        final int playerIdx = selectedIndex;
+        Timer t = new Timer(2000, e -> launchArcade(playerIdx));
+        t.setRepeats(false);
+        t.start();
+    }
+
+    private void launchArcade(int playerIdx) {
         int sw = getWidth(), sh = getHeight();
+        CharacterVoicePlayer.stopCurrent();
         window.dispose();
 
         ArrayList<Integer> opponents = new ArrayList<>();
@@ -324,7 +363,6 @@ public class CharacterSelect extends JPanel implements KeyListener {
 
         new ArcadeBattlePanel(playerIdx, opponents, 0, factory, sw, sh, getClass(), loggedInName);
     }
-
 
     @Override public void keyReleased(KeyEvent e) {}
     @Override public void keyTyped(KeyEvent e) {}

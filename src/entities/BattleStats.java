@@ -4,198 +4,137 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-// fighter stats and effects.
 public class BattleStats {
 
     public static final int MAX_HP   = 100;
     public static final int MAX_MANA = 100;
     public static final int MANA_REGEN_PER_ROUND = 5;
 
-    // public health and mana.
     public int hp;
     public int mana;
 
-    private ArrayList<ActiveEffect>  effects         = new ArrayList<ActiveEffect>();
-    private ArrayList<String>        pendingMessages = new ArrayList<String>();
-    private ArrayList<FloatEvent>    floatEvents     = new ArrayList<FloatEvent>();
-    private ArrayList<PassiveAction> passiveActions  = new ArrayList<PassiveAction>();
+    private final ArrayList<ActiveEffect>   effects         = new ArrayList<>();
+    private final ArrayList<String>         pendingMessages = new ArrayList<>();
+    private final ArrayList<FloatEvent>     floatEvents     = new ArrayList<>();
+    private final ArrayList<PassiveAction>  passiveActions  = new ArrayList<>();
+    private final String name;
 
-    private String name;
-
-    // constructor.
     public BattleStats(String name) {
         this.name = name;
         hp   = MAX_HP;
         mana = 0;
     }
 
-    // adjust health.
+    // ── Stat mutators ─────────────────────────────────────────────────────────
+
     public void addHp(int amount) {
-        hp = hp + amount;
-        if (hp > MAX_HP) {
-            hp = MAX_HP;
-        }
-        if (hp < 0) {
-            hp = 0;
-        }
+        hp = Math.min(MAX_HP, Math.max(0, hp + amount));
     }
 
-    // adjust mana.
     public void addMana(int amount) {
-        mana = mana + amount;
-        if (mana > MAX_MANA) {
-            mana = MAX_MANA;
-        }
-        if (mana < 0) {
-            mana = 0;
-        }
+        mana = Math.min(MAX_MANA, Math.max(0, mana + amount));
     }
 
-    // check afford.
-    public boolean canAfford(int cost) {
-        if (mana >= cost) {
-            return true;
-        }
-        return false;
-    }
+    public boolean canAfford(int cost) { return mana >= cost; }
 
-    // regen mana.
-    public void regenMana() {
-        addMana(MANA_REGEN_PER_ROUND);
-    }
+    public void regenMana() { addMana(MANA_REGEN_PER_ROUND); }
 
-    // apply effect.
+    // ── Effects ───────────────────────────────────────────────────────────────
+
     public void applyEffect(StatusEffect type, int turns) {
-        for (int i = 0; i < effects.size(); i++) {
-            ActiveEffect ae = effects.get(i);
+        for (ActiveEffect ae : effects) {
             if (ae.type == type) {
-                if (turns > ae.turnsLeft) {
-                    ae.turnsLeft = turns;
-                }
+                ae.turnsLeft = Math.max(ae.turnsLeft, turns);
                 return;
             }
         }
         effects.add(new ActiveEffect(type, turns));
     }
 
-    // check effect.
     public boolean hasEffect(StatusEffect type) {
-        for (int i = 0; i < effects.size(); i++) {
-            if (effects.get(i).type == type) {
-                return true;
-            }
-        }
+        for (ActiveEffect ae : effects) if (ae.type == type) return true;
         return false;
     }
 
-    // effect turns.
     public int effectTurns(StatusEffect type) {
-        for (int i = 0; i < effects.size(); i++) {
-            if (effects.get(i).type == type) {
-                return effects.get(i).turnsLeft;
-            }
-        }
+        for (ActiveEffect ae : effects) if (ae.type == type) return ae.turnsLeft;
         return 0;
     }
 
-    // remove effect.
     public void removeEffect(StatusEffect type) {
-        for (int i = effects.size() - 1; i >= 0; i--) {
-            if (effects.get(i).type == type) {
-                effects.remove(i);
-            }
-        }
+        effects.removeIf(ae -> ae.type == type);
     }
 
-    // get effects.
-    public List<ActiveEffect> getEffects() {
-        return new ArrayList<ActiveEffect>(effects);
-    }
+    public List<ActiveEffect> getEffects() { return new ArrayList<>(effects); }
 
-    // tick effects.
+
+
     public int tickEffects(boolean thisCharOnRight) {
         int poisonDamage = 0;
 
         if (hasEffect(StatusEffect.POISON)) {
+            // Design doc: Poison = 4 damage per turn
             poisonDamage += 4;
             addHp(-4);
             decrementEffect(StatusEffect.POISON);
-            addMessage("Ouch! " + name + " winces as the poison drains 4 health.");
+            addMessage(name + " suffered 4 damage from poison.");
             queueFloat(4, FloatEvent.Kind.DAMAGE, thisCharOnRight);
         }
 
         if (hasEffect(StatusEffect.SEVERE_POISON)) {
+            // Design doc: Severe Poison = 10 damage per turn
             poisonDamage += 10;
             addHp(-10);
             decrementEffect(StatusEffect.SEVERE_POISON);
-            addMessage(name + " gasps in pain as severe poison violently strips away 10 health.");
+            addMessage(name + " suffered 10 damage from severe poison.");
             queueFloat(10, FloatEvent.Kind.DAMAGE, thisCharOnRight);
         }
 
-        ArrayList<ActiveEffect> snapshot = new ArrayList<ActiveEffect>(effects);
-        for (int i = 0; i < snapshot.size(); i++) {
-            ActiveEffect ae = snapshot.get(i);
-            if (ae.type == StatusEffect.POISON || ae.type == StatusEffect.SEVERE_POISON) {
-                continue;
-            }
+        List<ActiveEffect> snap = new ArrayList<>(effects);
+        for (ActiveEffect ae : snap) {
+            if (ae.type == StatusEffect.POISON || ae.type == StatusEffect.SEVERE_POISON) continue;
             ae.turnsLeft--;
             if (ae.turnsLeft <= 0) {
                 effects.remove(ae);
-                addMessage("The " + ae.type.displayName + " effect has finally faded away from " + name + ".");
+                addMessage("The " + ae.type.displayName + " effect wore off for " + name + ".");
             }
         }
 
         return poisonDamage;
     }
 
-    // decrement effect.
+    public int tickEffects() {
+        return tickEffects(false);
+    }
+
     private void decrementEffect(StatusEffect type) {
-        for (int i = 0; i < effects.size(); i++) {
-            ActiveEffect ae = effects.get(i);
+        for (ActiveEffect ae : effects) {
             if (ae.type == type) {
                 ae.turnsLeft--;
-                if (ae.turnsLeft <= 0) {
-                    effects.remove(ae);
-                }
+                if (ae.turnsLeft <= 0) effects.remove(ae);
                 return;
             }
         }
     }
 
-    // add message.
+    // ── Messages ──────────────────────────────────────────────────────────────
+
     public void addMessage(String msg)  { pendingMessages.add(msg); }
-
-    // has messages.
     public boolean hasMessages()        { return !pendingMessages.isEmpty(); }
+    public String pollMessage()         { return pendingMessages.isEmpty() ? null : pendingMessages.remove(0); }
+    public void clearMessages()         { pendingMessages.clear(); }
 
-    // poll message.
-    public String pollMessage() {
-        if (pendingMessages.isEmpty()) {
-            return null;
-        }
-        return pendingMessages.remove(0);
-    }
+    // ── Float events ──────────────────────────────────────────────────────────
 
-    // clear messages.
-    public void clearMessages() { pendingMessages.clear(); }
-
-    // queue float.
     public void queueFloat(int value, FloatEvent.Kind kind, boolean onRight) {
         floatEvents.add(new FloatEvent(value, kind, onRight));
     }
 
-    // has float.
-    public boolean hasFloatEvents() { return !floatEvents.isEmpty(); }
+    public boolean hasFloatEvents()    { return !floatEvents.isEmpty(); }
+    public FloatEvent pollFloatEvent() { return floatEvents.isEmpty() ? null : floatEvents.remove(0); }
 
-    // poll float.
-    public FloatEvent pollFloatEvent() {
-        if (floatEvents.isEmpty()) {
-            return null;
-        }
-        return floatEvents.remove(0);
-    }
+    // ── Passive actions ───────────────────────────────────────────────────────
 
-    // queue passive.
     public void queuePassiveAction(BattleStats target,
                                    int hpDelta, int manaDelta,
                                    FloatEvent.Kind floatKind, int floatValue,
@@ -205,25 +144,21 @@ public class BattleStats {
                 floatKind, floatValue, onRight, message));
     }
 
-    // has passive.
     public boolean hasPassiveActions() { return !passiveActions.isEmpty(); }
 
-    // drain passive.
     public List<PassiveAction> drainPassiveActions() {
-        List<PassiveAction> copy = new ArrayList<PassiveAction>(passiveActions);
+        List<PassiveAction> copy = new ArrayList<>(passiveActions);
         passiveActions.clear();
         return copy;
     }
 
-    // buf.
+    // ── Turn-count buffer helper ──────────────────────────────────────────────
     private static int buf(int base, boolean attackerOnRight) {
-        if (attackerOnRight) {
-            return base + 1;
-        }
-        return base;
+        return attackerOnRight ? base + 1 : base;
     }
 
-    // compute skill.
+    // ── Skill resolution ──────────────────────────────────────────────────────
+
     public int computeSkill(int skillNum, String charName,
                             BattleStats target, boolean isTrueDmg,
                             boolean attackerOnRight) {
@@ -232,103 +167,98 @@ public class BattleStats {
 
         if (skill == null) {
             int dmg = 5 + rng.nextInt(6);
-            addMessage(charName + " swings hard and deals " + dmg + " damage!");
+            addMessage(charName + " attacks for " + dmg + " damage!");
             return dmg;
         }
 
-        if (skillNum == 1) {
-            addMana(skill.manaRegen);
-        } else {
+        // ── Mana ──────────────────────────────────────────────────────────────
+        if (skillNum == 1) addMana(skill.manaRegen);
+        else {
             int cost = skill.manaCost;
             if (hasEffect(StatusEffect.EXHAUSTION)) {
                 cost += 10;
                 removeEffect(StatusEffect.EXHAUSTION);
-                addMessage(charName + " feels exhausted and the skill takes 10 extra mana!");
+                addMessage(charName + " is exhausted the skill cost 10 extra mana!");
             }
             addMana(-cost);
         }
 
+        // ── Base damage ───────────────────────────────────────────────────────
         int dmg = skill.minDmg + rng.nextInt(skill.maxDmg - skill.minDmg + 1);
 
+        // ── Outgoing debuffs on attacker ──────────────────────────────────────
         if (hasEffect(StatusEffect.WEAKNESS)) {
             dmg = (int)(dmg * 0.80);
-            addMessage(charName + " attacks weakly and deals less damage!");
+            addMessage(charName + " is weakened and deals 20% less damage!");
         }
-
         if (hasEffect(StatusEffect.MIND_MAZE)) {
             dmg = dmg / 2;
-            addMessage(charName + " is lost in a confusing mind maze and their damage is halved!");
+            addMessage(charName + " is lost in a mind maze damage halved!");
         }
 
-        if (hasEffect(StatusEffect.CONFUSE)) {
-            if (rng.nextInt(100) < 50) {
-                addMessage(charName + " is terribly confused and accidentally struck themselves!");
-                removeEffect(StatusEffect.CONFUSE);
-                return -dmg;
-            }
+        // ── CONFUSE: 50% chance to self-hit ──────────────────────────────────
+        if (hasEffect(StatusEffect.CONFUSE) && rng.nextInt(100) < 50) {
+            addMessage(charName + " is confused and struck themselves!");
+            removeEffect(StatusEffect.CONFUSE);
+            return -dmg;
         }
 
+        // ── Kimmay skill 3: 25% chance to shatter all defenses ───────────────
         boolean celestialIgnore = false;
-        if (charName.equals("Kimmay")) {
-            if (skillNum == 3) {
-                if (rng.nextInt(100) < 25) {
-                    celestialIgnore = true;
-                    addMessage("Wow! Celestial Break shattered all defenses completely!");
-                }
-            }
+        if (charName.equals("Kimmay") && skillNum == 3 && rng.nextInt(100) < 25) {
+            celestialIgnore = true;
+            addMessage("Celestial Break shattered all defenses!");
+        }
+        boolean effectiveTrueDmg = isTrueDmg || celestialIgnore;
+
+        // ── DODGE ─────────────────────────────────────────────────────────────
+        if (!effectiveTrueDmg && target.hasEffect(StatusEffect.DODGE)) {
+            target.removeEffect(StatusEffect.DODGE);
+            addMessage(target.name + " dodged the attack!");
+            target.queueFloat(0, FloatEvent.Kind.DODGE, !attackerOnRight);
+            return 0;
         }
 
-        boolean effectiveTrueDmg = false;
-        if (isTrueDmg) {
-            effectiveTrueDmg = true;
-        } else if (celestialIgnore) {
-            effectiveTrueDmg = true;
+        // ── BLOCK ─────────────────────────────────────────────────────────────
+        if (!effectiveTrueDmg && target.hasEffect(StatusEffect.BLOCK)) {
+            dmg = dmg / 2;
+            target.removeEffect(StatusEffect.BLOCK);
+            addMessage(target.name + " blocked! Damage reduced to " + dmg + ".");
         }
 
-        if (!effectiveTrueDmg) {
-            if (target.hasEffect(StatusEffect.DODGE)) {
-                target.removeEffect(StatusEffect.DODGE);
-                addMessage(target.name + " gracefully dodged the incoming attack!");
-                target.queueFloat(0, FloatEvent.Kind.DODGE, !attackerOnRight);
-                return 0;
-            }
-        }
-
-        if (!effectiveTrueDmg) {
-            if (target.hasEffect(StatusEffect.BLOCK)) {
-                dmg = dmg / 2;
-                target.removeEffect(StatusEffect.BLOCK);
-                addMessage(target.name + " bravely blocked the attack and reduced the damage to " + dmg + ".");
-            }
-        }
-
+        // ── FRACTURE — now +20% bonus ─────────────────────────────────────────
         if (target.hasEffect(StatusEffect.FRACTURE)) {
             int bonus = (int)(dmg * 0.20);
             dmg += bonus;
             target.removeEffect(StatusEffect.FRACTURE);
-            addMessage(target.name + " is fractured and suffers " + bonus + " extra damage!");
+            addMessage(target.name + " is fractured takes " + bonus + " extra damage!");
         }
 
-        addMessage(skill.name + " viciously smashes into " + target.name + " for " + dmg + " damage!");
+        addMessage(skill.name + " hits " + target.name + " for " + dmg + " damage!");
 
         computePassive(skillNum, charName, skill, target, rng, dmg, effectiveTrueDmg, attackerOnRight);
 
         return dmg;
     }
 
-    // compute bag smash.
+    public int computeSkill(int skillNum, String charName,
+                            BattleStats target, boolean isTrueDmg) {
+        return computeSkill(skillNum, charName, target, isTrueDmg, false);
+    }
+
+    // ── Bag Smash (AIP skill 3) ───────────────────────────────────────────────
+
     public int computeBagSmash(BattleStats target) {
         Random rng = new Random();
-        addMana(0);
-
+        addMana(-50);
         if (rng.nextInt(100) < 50) {
             int dmg = 100;
-            addMessage("Bag Smash lands perfectly for a devastating " + dmg + " damage!");
+            addMessage("Bag Smash connects for a massive " + dmg + " damage!");
             return dmg;
         } else {
             int lost = mana;
             mana = 0;
-            addMessage("Oh no! Bag Smash missed entirely and AIP lost all " + lost + " mana!");
+            addMessage("Bag Smash missed! AIP lost all " + lost + " mana!");
             return 0;
         }
     }
@@ -367,7 +297,8 @@ public class BattleStats {
                 }
             } else if (skillNum == 3) {
                 if (roll < 25) {
-                    target.applyEffect(StatusEffect.SILENCE, buf(1, attackerOnRight));
+                    // 2 so that after tickEffects runs this turn, it becomes 1 for the enemy's next turn
+                    target.applyEffect(StatusEffect.SILENCE, 2);
                     addMessage(target.name + " is totally silenced and cannot use complex skills next turn!");
                 }
             }
@@ -380,7 +311,8 @@ public class BattleStats {
                 }
             } else if (skillNum == 2) {
                 if (roll < 25) {
-                    applyEffect(StatusEffect.DODGE, buf(1, attackerOnRight));
+                    // 2 so that after tickEffects runs this turn, dodge is still active next turn
+                    applyEffect(StatusEffect.DODGE, 2);
                     addMessage("Ballerina prepares to nimbly dodge the very next attack!");
                 }
             } else if (skillNum == 3) {
@@ -420,8 +352,9 @@ public class BattleStats {
 
         } else if (charName.equals("Tralalelo")) {
             if (skillNum == 1) {
-                if (roll < 35) {
-                    target.applyEffect(StatusEffect.POISON, buf(3, attackerOnRight));
+                if (roll < 350) {
+                    // Poison ticks immediately, so 4 turns = 3 remaining ticks after first tick
+                    target.applyEffect(StatusEffect.POISON, 4);
                     addMessage(target.name + " is now poisoned and will take lingering damage.");
                 }
             } else if (skillNum == 2) {
@@ -437,7 +370,8 @@ public class BattleStats {
                 }
             } else if (skillNum == 3) {
                 if (roll < 30) {
-                    target.applyEffect(StatusEffect.SEVERE_POISON, buf(2, attackerOnRight));
+                    // Severe poison ticks immediately, so 3 turns = 2 remaining ticks after first tick
+                    target.applyEffect(StatusEffect.SEVERE_POISON, 3);
                     addMessage(target.name + " was infected with severe poison and will take heavy damage.");
                 }
             }
@@ -450,7 +384,8 @@ public class BattleStats {
                 }
             } else if (skillNum == 2) {
                 if (roll < 30) {
-                    target.applyEffect(StatusEffect.CONFUSE, buf(1, attackerOnRight));
+                    // 2 so that after tickEffects runs this turn, confuse is still active next turn
+                    target.applyEffect(StatusEffect.CONFUSE, 2);
                     addMessage(target.name + " looks terribly confused and might accidentally hit themselves next turn!");
                 }
             }
@@ -462,25 +397,29 @@ public class BattleStats {
                 }
             } else if (skillNum == 2) {
                 if (roll < 35) {
-                    target.applyEffect(StatusEffect.FRACTURE, buf(1, attackerOnRight));
+                    // 2 so that after tickEffects runs this turn, fracture is still active next turn
+                    target.applyEffect(StatusEffect.FRACTURE, 2);
                     addMessage(target.name + " just got fractured and will take more damage from the next hit.");
                 }
             }
 
         } else if (charName.equals("Dianne")) {
             if (skillNum == 1) {
-                if (roll < 40) {
-                    target.applyEffect(StatusEffect.WEAKNESS, buf(1, attackerOnRight));
+                if (roll < 400) {
+                    // 2 so that after tickEffects runs this turn, weakness is still active next turn
+                    target.applyEffect(StatusEffect.WEAKNESS, 2);
                     addMessage(target.name + " feels incredibly weak and will deal less damage next turn.");
                 }
             } else if (skillNum == 2) {
-                if (roll < 45) {
-                    target.applyEffect(StatusEffect.EXHAUSTION, buf(1, attackerOnRight));
+                if (roll < 450) {
+                    // 2 so that after tickEffects runs this turn, exhaustion is still active next turn
+                    target.applyEffect(StatusEffect.EXHAUSTION, 2);
                     addMessage(target.name + " is completely exhausted so their next skill will cost extra mana.");
                 }
             } else if (skillNum == 3) {
-                if (roll < 25) {
-                    target.applyEffect(StatusEffect.MIND_MAZE, buf(2, attackerOnRight));
+                if (roll < 250) {
+                    // 3 so that after tickEffects runs this turn, mind maze lasts 2 full turns
+                    target.applyEffect(StatusEffect.MIND_MAZE, 3);
                     addMessage(target.name + " is wandering blindly in a mind maze and their damage is halved.");
                 }
             }
@@ -508,46 +447,56 @@ public class BattleStats {
         } else if (charName.equals("Christian")) {
             if (skillNum == 1) {
                 if (roll < 25) {
-                    target.applyEffect(StatusEffect.STUN, buf(1, attackerOnRight));
+                    // 2 so that after tickEffects runs this turn, stun is still active next turn
+                    target.applyEffect(StatusEffect.STUN, 2);
                     addMessage(target.name + " is completely stunned and has to skip their next turn!");
                 }
             } else if (skillNum == 2) {
                 if (roll < 50) {
-                    applyEffect(StatusEffect.BLOCK, buf(1, attackerOnRight));
+                    // 2 so that after tickEffects runs this turn, block is still active next turn
+                    applyEffect(StatusEffect.BLOCK, 2);
                     addMessage("Christian bravely raises his guard and will block half of the next attack!");
                 }
             } else if (skillNum == 3) {
                 if (roll < 25) {
-                    target.applyEffect(StatusEffect.HEAVY_STUN, buf(2, attackerOnRight));
+                    // 3 so that after tickEffects runs this turn, heavy stun lasts 2 full turns
+                    target.applyEffect(StatusEffect.HEAVY_STUN, 3);
                     addMessage("What a Heavy Stun as " + target.name + " gets knocked out cold for 2 full turns!");
                 }
             }
         }
     }
 
-    // resolve skill.
+    // ── Resolve helpers (called by BattleEngine) ──────────────────────────────
+
     public int resolveSkill(int skillNum, String charName,
                             BattleStats target, boolean isTrueDmgActive,
                             boolean attackerOnRight) {
-
         int dmg = computeSkill(skillNum, charName, target, isTrueDmgActive, attackerOnRight);
-
         if (dmg < 0) {
-            queuePassiveAction(this, dmg, 0, FloatEvent.Kind.DAMAGE, -dmg,
-                    attackerOnRight, null);
+            queuePassiveAction(this,
+                    dmg, 0,
+                    FloatEvent.Kind.DAMAGE, -dmg,
+                    attackerOnRight,
+                    null);
             return 0;
         }
         return dmg;
     }
 
-    // resolve bag smash.
+    public int resolveSkill(int skillNum, String charName,
+                            BattleStats target, boolean isTrueDmgActive) {
+        return resolveSkill(skillNum, charName, target, isTrueDmgActive, false);
+    }
+
     public int resolveBagSmash(BattleStats target) {
         return computeBagSmash(target);
     }
 
-    // active effect class.
+    // ── Inner types ───────────────────────────────────────────────────────────
+
     public static class ActiveEffect {
-        public StatusEffect type;
+        public final StatusEffect type;
         public int turnsLeft;
 
         public ActiveEffect(StatusEffect type, int turnsLeft) {
@@ -556,13 +505,12 @@ public class BattleStats {
         }
     }
 
-    // float event class.
     public static class FloatEvent {
         public enum Kind { DAMAGE, BONUS_DAMAGE, MANA_DRAIN, MANA_GAIN, DODGE, HEAL }
 
-        public int     value;
-        public Kind    kind;
-        public boolean onRight;
+        public final int     value;
+        public final Kind    kind;
+        public final boolean onRight;
 
         public FloatEvent(int value, Kind kind, boolean onRight) {
             this.value   = value;
@@ -571,15 +519,14 @@ public class BattleStats {
         }
     }
 
-    // passive action class.
     public static class PassiveAction {
-        public BattleStats     target;
-        public int             hpDelta;
-        public int             manaDelta;
-        public FloatEvent.Kind floatKind;
-        public int             floatValue;
-        public boolean         onRight;
-        public String          message;
+        public final BattleStats     target;
+        public final int             hpDelta;
+        public final int             manaDelta;
+        public final FloatEvent.Kind floatKind;
+        public final int             floatValue;
+        public final boolean         onRight;
+        public final String          message;
 
         public PassiveAction(BattleStats target,
                              int hpDelta, int manaDelta,

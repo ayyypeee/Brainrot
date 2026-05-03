@@ -86,7 +86,7 @@ public class PauseMenuOverlay {
         int titleFs = Math.max(14, innerW / 9);
         g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, titleFs));
         g2.setColor(new Color(80, 220, 220));
-        String title = "PAUSE MENU";
+        String title = "";
         FontMetrics tfm = g2.getFontMetrics();
         int titleY = innerY + titleFs + (int)(innerH * 0.01);
         g2.setColor(new Color(0, 0, 0, 120));

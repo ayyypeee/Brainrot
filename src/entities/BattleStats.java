@@ -319,9 +319,9 @@ public class BattleStats {
     // compute bag smash.
     public int computeBagSmash(BattleStats target) {
         Random rng = new Random();
-        addMana(-50);
+        addMana(0);
 
-        if (rng.nextInt(49) < 50) {
+        if (rng.nextInt(100) < 50) {
             int dmg = 100;
             addMessage("Bag Smash lands perfectly for a devastating " + dmg + " damage!");
             return dmg;

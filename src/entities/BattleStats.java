@@ -205,7 +205,7 @@ public class BattleStats {
 
         // ── Kimmay skill 3: 25% chance to shatter all defenses ───────────────
         boolean celestialIgnore = false;
-        if (charName.equals("Kimmay") && skillNum == 3 && rng.nextInt(100) < 25) {
+        if (charName.equals("Kimmay") && skillNum == 3 && rng.nextInt(100) < 250) {
             celestialIgnore = true;
             addMessage("Celestial Break shattered all defenses!");
         }
@@ -352,7 +352,7 @@ public class BattleStats {
 
         } else if (charName.equals("Tralalelo")) {
             if (skillNum == 1) {
-                if (roll < 350) {
+                if (roll < 35) {
                     // Poison ticks immediately, so 4 turns = 3 remaining ticks after first tick
                     target.applyEffect(StatusEffect.POISON, 4);
                     addMessage(target.name + " is now poisoned and will take lingering damage.");
@@ -405,19 +405,19 @@ public class BattleStats {
 
         } else if (charName.equals("Dianne")) {
             if (skillNum == 1) {
-                if (roll < 400) {
+                if (roll < 40) {
                     // 2 so that after tickEffects runs this turn, weakness is still active next turn
                     target.applyEffect(StatusEffect.WEAKNESS, 2);
                     addMessage(target.name + " feels incredibly weak and will deal less damage next turn.");
                 }
             } else if (skillNum == 2) {
-                if (roll < 450) {
+                if (roll < 45) {
                     // 2 so that after tickEffects runs this turn, exhaustion is still active next turn
                     target.applyEffect(StatusEffect.EXHAUSTION, 2);
                     addMessage(target.name + " is completely exhausted so their next skill will cost extra mana.");
                 }
             } else if (skillNum == 3) {
-                if (roll < 250) {
+                if (roll < 25) {
                     // 3 so that after tickEffects runs this turn, mind maze lasts 2 full turns
                     target.applyEffect(StatusEffect.MIND_MAZE, 3);
                     addMessage(target.name + " is wandering blindly in a mind maze and their damage is halved.");

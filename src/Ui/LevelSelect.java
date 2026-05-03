@@ -29,7 +29,16 @@ public class LevelSelect extends JPanel implements KeyListener, MouseListener, M
     private boolean hoverLB = false;
     private int lbFontSize;
 
-    public LevelSelect() {
+
+    private final String loggedInName;
+
+    private final LeaderboardOverlay lbOverlay = new LeaderboardOverlay();
+
+    private Timer repaintTimer;
+
+    public LevelSelect(String loggedInName) {
+        this.loggedInName = (loggedInName != null && !loggedInName.isEmpty())
+                ? loggedInName : "Player";
 
         loadAssets();
         MusicPlayer.playMenu();
@@ -39,6 +48,13 @@ public class LevelSelect extends JPanel implements KeyListener, MouseListener, M
         addMouseMotionListener(this);
         setupWindow();
         SwingUtilities.invokeLater(() -> { calculateLayout(); repaint(); requestFocusInWindow(); });
+
+        repaintTimer = new Timer(16, e -> { if (lbOverlay.isOpen()) repaint(); });
+        repaintTimer.start();
+    }
+
+    public LevelSelect() {
+        this("Player");
     }
 
     private void loadAssets() {
@@ -63,17 +79,17 @@ public class LevelSelect extends JPanel implements KeyListener, MouseListener, M
         cardW = (int)(cardH * 0.78);
         titleFontSize = Math.max(24, (int)(sh * 0.055));
         labelFontSize = Math.max(14, (int)(sh * 0.030));
-        descFontSize = Math.max(10, (int)(sh * 0.018));
-        lbFontSize = Math.max(11, (int)(sh * 0.020));
+        descFontSize  = Math.max(10, (int)(sh * 0.018));
+        lbFontSize    = Math.max(11, (int)(sh * 0.020));
 
-        int gap = (int)(sw * 0.06);
+        int gap    = (int)(sw * 0.06);
         int totalW = cardW * 3 + gap * 2;
         int startX = (sw - totalW) / 2;
 
         card1X = startX;
         card2X = startX + cardW + gap;
         card3X = startX + (cardW + gap) * 2;
-        cardY = (int)(sh * 0.14);
+        cardY  = (int)(sh * 0.14);
 
         int lbW = (int)(cardW * 0.85);
         int lbH = Math.max(32, (int)(sh * 0.046));
@@ -109,11 +125,12 @@ public class LevelSelect extends JPanel implements KeyListener, MouseListener, M
         else { g2.setColor(new Color(10, 30, 15)); g2.fillRect(0, 0, sw, sh); }
 
         drawTitle(g2, sw, sh);
-        drawCard(g2, 1, card1X, cardY, cardW, cardH, computerImg, "Vs Computer", "Practice against the AI");
-        drawCard(g2, 2, card2X, cardY, cardW, cardH, pvpImg, "Player vs Player", "Fight a friend locally");
-        drawCard(g2, 3, card3X, cardY, cardW, cardH, arcadeImg, "Arcade", "Defeat all opponents");
+        drawCard(g2, 1, card1X, cardY, cardW, cardH, computerImg, "Vs Computer",      "Practice against the AI");
+        drawCard(g2, 2, card2X, cardY, cardW, cardH, pvpImg,      "Player vs Player", "Fight a friend locally");
+        drawCard(g2, 3, card3X, cardY, cardW, cardH, arcadeImg,   "Arcade",           "Defeat all opponents");
         drawLeaderboardButton(g2);
 
+        if (lbOverlay.isOpen()) lbOverlay.draw(g2, sw, sh);
     }
 
     private void drawTitle(Graphics2D g2, int sw, int sh) {
@@ -149,7 +166,7 @@ public class LevelSelect extends JPanel implements KeyListener, MouseListener, M
 
         g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, labelFontSize));
         Color labelColor = selected ? new Color(255, 220, 80) : Color.WHITE;
-        int lw = g2.getFontMetrics().stringWidth(label);
+        int lw     = g2.getFontMetrics().stringWidth(label);
         int labelY = y + h + labelFontSize + 6;
         g2.setColor(new Color(0, 0, 0, 160));
         g2.drawString(label, x + w / 2 - lw / 2 + 2, labelY + 2);
@@ -173,7 +190,7 @@ public class LevelSelect extends JPanel implements KeyListener, MouseListener, M
         g2.drawRoundRect(x, y, w, h, 12, 12);
         g2.setStroke(new BasicStroke(1f));
 
-        String lbText = "🏆 Leaderboard";
+        String lbText = "\uD83C\uDFC6 Leaderboard";
         g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, lbFontSize));
         FontMetrics fm = g2.getFontMetrics();
         g2.setColor(hoverLB ? new Color(20, 20, 20) : new Color(30, 20, 0));
@@ -182,40 +199,14 @@ public class LevelSelect extends JPanel implements KeyListener, MouseListener, M
         g2.drawString(lbText, tx, ty);
     }
 
-
-
-    private void showLeaderboard() {
-        java.util.List<ArcadeLeaderboard.Entry> entries = ArcadeLeaderboard.getEntries();
-        StringBuilder sb = new StringBuilder();
-        sb.append(String.format("%-4s %-16s %-14s %s%n", "#", "Player", "Character", "Time"));
-        sb.append("-".repeat(50)).append("\n");
-        int rank = 1;
-        for (ArcadeLeaderboard.Entry en : entries) {
-            sb.append(String.format("%-4d %-16s %-14s %s%n",
-                    rank++, en.playerName, en.characterName, formatTime(en.seconds)));
-        }
-        if (entries.isEmpty()) sb.append("\n  No entries yet. Finish an Arcade run to see your name here!\n");
-
-        JTextArea ta = new JTextArea(sb.toString());
-        ta.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 14));
-        ta.setEditable(false);
-        ta.setBackground(new Color(15, 15, 35));
-        ta.setForeground(Color.WHITE);
-        JScrollPane sp = new JScrollPane(ta);
-        sp.setPreferredSize(new Dimension(500, 300));
-        sp.getViewport().setBackground(new Color(15, 15, 35));
-
-        JOptionPane.showMessageDialog(window, sp, "🏆 Arcade Leaderboard", JOptionPane.PLAIN_MESSAGE);
-        requestFocusInWindow();
-    }
-
-    private String formatTime(long totalSeconds) {
-        long m = totalSeconds / 60, s = totalSeconds % 60;
-        return String.format("%02d:%02d", m, s);
-    }
-
     @Override
     public void keyPressed(KeyEvent e) {
+        if (lbOverlay.isOpen()) {
+            lbOverlay.handleKey(e.getKeyCode());
+            repaint();
+            return;
+        }
+
         int k = e.getKeyCode();
         if (k == KeyEvent.VK_RIGHT || k == KeyEvent.VK_D) {
             if (selectedCard < 3) { selectedCard++; repaint(); }
@@ -225,24 +216,32 @@ public class LevelSelect extends JPanel implements KeyListener, MouseListener, M
             confirm();
         } else if (k == KeyEvent.VK_ESCAPE) {
             window.dispose();
-            new TitleScreen();
+            new TitleScreen(loggedInName);
         }
     }
 
     private void confirm() {
         window.dispose();
         switch (selectedCard) {
-            case 1: new CharacterSelect(CharacterSelect.Mode.VS_AI); break;
-            case 2: new CharacterSelect(CharacterSelect.Mode.PVP); break;
-            case 3: new CharacterSelect(CharacterSelect.Mode.ARCADE); break;
+            // ── KEY CHANGE: pass loggedInName to CharacterSelect for Arcade ──
+            case 1: new CharacterSelect(CharacterSelect.Mode.VS_AI,  loggedInName); break;
+            case 2: new CharacterSelect(CharacterSelect.Mode.PVP,    loggedInName); break;
+            case 3: new CharacterSelect(CharacterSelect.Mode.ARCADE, loggedInName); break;
         }
     }
 
     @Override
     public void mouseClicked(MouseEvent e) {
+        if (lbOverlay.isOpen()) {
+            lbOverlay.handleClick(e.getPoint());
+            repaint();
+            return;
+        }
+
         Point pt = e.getPoint();
         if (lbRect.contains(pt)) {
-            showLeaderboard();
+            lbOverlay.open();
+            repaint();
             return;
         }
         int[] xs = { card1X, card2X, card3X };
@@ -258,6 +257,13 @@ public class LevelSelect extends JPanel implements KeyListener, MouseListener, M
 
     @Override
     public void mouseMoved(MouseEvent e) {
+        if (lbOverlay.isOpen()) {
+            lbOverlay.handleHover(e.getPoint());
+            setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
+            repaint();
+            return;
+        }
+
         Point pt = e.getPoint();
         hoverLB = lbRect.contains(pt);
         boolean onCard = false;
@@ -273,11 +279,11 @@ public class LevelSelect extends JPanel implements KeyListener, MouseListener, M
         repaint();
     }
 
-    @Override public void keyReleased(KeyEvent e) {}
-    @Override public void keyTyped(KeyEvent e) {}
+    @Override public void keyReleased(KeyEvent e)    {}
+    @Override public void keyTyped(KeyEvent e)       {}
     @Override public void mousePressed(MouseEvent e) {}
-    @Override public void mouseReleased(MouseEvent e) {}
+    @Override public void mouseReleased(MouseEvent e){}
     @Override public void mouseEntered(MouseEvent e) {}
-    @Override public void mouseExited(MouseEvent e) {}
+    @Override public void mouseExited(MouseEvent e)  {}
     @Override public void mouseDragged(MouseEvent e) {}
 }

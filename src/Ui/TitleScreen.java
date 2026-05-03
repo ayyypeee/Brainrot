@@ -1,11 +1,13 @@
 package Ui;
 
-import javax.sound.sampled.*;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
 import javax.swing.*;
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
-import javax.imageio.ImageIO;
 
 public class TitleScreen extends JPanel implements KeyListener, MouseListener, MouseMotionListener {
 
@@ -33,9 +35,21 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
     private int btn1X, btn1Y, btn2Y, btn3Y;
     private boolean layoutReady = false;
 
-    public TitleScreen() {
-        loadImages();
+    // ── About overlay ─────────────────────────────────────────────────────────
+    private final AboutOverlay aboutOverlay = new AboutOverlay();
 
+    // ── Repaint timer for overlay slide-in animation ──────────────────────────
+    private Timer repaintTimer;
+
+    // ── Logged-in username forwarded from LoginScreen ─────────────────────────
+    private final String loggedInName;
+
+    // ── Constructor accepting username (called from LoginScreen) ──────────────
+    public TitleScreen(String loggedInName) {
+        this.loggedInName = (loggedInName != null && !loggedInName.isEmpty())
+                ? loggedInName : "Player";
+
+        loadImages();
         MusicPlayer.playMenu();
 
         setFocusable(true);
@@ -63,7 +77,18 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
             repaint();
         });
 
+        // Drives the overlay slide-in animation at 60fps
+        repaintTimer = new Timer(16, e -> {
+            if (aboutOverlay.isOpen()) repaint();
+        });
+        repaintTimer.start();
+
         requestFocusInWindow();
+    }
+
+    // ── Backward-compatible no-arg constructor ────────────────────────────────
+    public TitleScreen() {
+        this("Player");
     }
 
     private void loadImages() {
@@ -100,8 +125,8 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
 
     private void calculateLayout() {
         int sw = getWidth(), sh = getHeight();
-        btnH = (int)(sh * 0.09);
-        btnW = (int)(btnH * (447.0 / 143.0));
+        btnH  = (int)(sh * 0.09);
+        btnW  = (int)(btnH * (447.0 / 143.0));
         btn1X = (sw - btnW) / 2;
         int gap = (int)(sh * 0.025);
         btn1Y = (int)(sh * 0.55);
@@ -110,11 +135,6 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
         startRect.setBounds(btn1X, btn1Y, btnW, btnH);
         aboutRect.setBounds(btn1X, btn2Y, btnW, btnH);
         exitRect .setBounds(btn1X, btn3Y, btnW, btnH);
-    }
-
-    private void exitFullScreen() {
-        GraphicsEnvironment.getLocalGraphicsEnvironment()
-                .getDefaultScreenDevice().setFullScreenWindow(null);
     }
 
     @Override
@@ -139,6 +159,11 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
             drawButton(g2, aboutImg, aboutRect, hoverAbout);
             drawButton(g2, exitImg,  exitRect,  hoverExit);
         }
+
+        // ── About overlay drawn on very top ───────────────────────────────────
+        if (aboutOverlay.isOpen()) {
+            aboutOverlay.draw(g2, getWidth(), getHeight());
+        }
     }
 
     private void drawButton(Graphics2D g2, BufferedImage img, Rectangle rect, boolean hovered) {
@@ -162,6 +187,11 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
 
     @Override
     public void mouseMoved(MouseEvent e) {
+        if (aboutOverlay.isOpen()) {
+            aboutOverlay.handleHover(e.getPoint());
+            repaint();
+            return;
+        }
         hoverStart = startRect.contains(e.getPoint());
         hoverAbout = aboutRect.contains(e.getPoint());
         hoverExit  = exitRect.contains(e.getPoint());
@@ -172,6 +202,11 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
 
     @Override
     public void mouseClicked(MouseEvent e) {
+        if (aboutOverlay.isOpen()) {
+            aboutOverlay.handleClick(e.getPoint());
+            repaint();
+            return;
+        }
         if      (startRect.contains(e.getPoint())) handleStart();
         else if (aboutRect.contains(e.getPoint())) handleAbout();
         else if (exitRect.contains(e.getPoint()))  handleExit();
@@ -179,20 +214,25 @@ public class TitleScreen extends JPanel implements KeyListener, MouseListener, M
 
     @Override
     public void keyPressed(KeyEvent e) {
+        if (aboutOverlay.isOpen()) {
+            aboutOverlay.handleKey(e.getKeyCode());
+            repaint();
+            return;
+        }
         if      (e.getKeyCode() == KeyEvent.VK_ENTER)  handleStart();
         else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) handleExit();
     }
 
     private void handleStart() {
-        // Music keeps playing — do NOT stop it here.
-        exitFullScreen();
+        repaintTimer.stop();
         window.dispose();
-        new LevelSelect();
+
+        new LevelSelect(loggedInName);
     }
 
     private void handleAbout() {
-        JOptionPane.showMessageDialog(window, "  binchilling", "About", JOptionPane.INFORMATION_MESSAGE);
-        requestFocusInWindow();
+        aboutOverlay.open();
+        repaint();
     }
 
     private void handleExit() {

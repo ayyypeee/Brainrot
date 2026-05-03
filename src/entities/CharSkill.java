@@ -1,14 +1,16 @@
 package entities;
 
-/** Plain data holder for one skill. */
+
 public class CharSkill {
-    public final String name;
-    public final int    minDmg, maxDmg;
-    public final int    manaCost;      // 0 for skill 1
-    public final int    manaRegen;     // 0 for skill 2/3
-    public final String passiveDesc;   // shown on hover
-    public final int    passiveChance; // percent
-    public final String iconPath;      // resource path for the skill icon image
+
+    public String name;
+    public int minDmg;
+    public int maxDmg;
+    public int manaCost;
+    public int manaRegen;
+    public String passiveDesc;
+    public int passiveChance;
+    public String iconPath;
 
     public CharSkill(String name, int minDmg, int maxDmg,
                      int manaCost, int manaRegen,
@@ -24,6 +26,10 @@ public class CharSkill {
         this.iconPath      = iconPath;
     }
 
-    /** True if this is a basic attack (no cost, generates mana). */
-    public boolean isBasic() { return manaRegen > 0; }
+    public boolean isBasic() {
+        if (manaRegen > 0) {
+            return true;
+        }
+        return false;
+    }
 }

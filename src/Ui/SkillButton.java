@@ -15,7 +15,7 @@ public class SkillButton {
     private boolean       disabled;
     private final int     skillNum;
 
-    // Optional mana info — set by the battle panels after construction
+    // Optional mana info
     private String  manaLabel   = "";
     private boolean isManaRegen = false;
 
@@ -44,15 +44,11 @@ public class SkillButton {
         this.isManaRegen = isRegen;
     }
 
-    /**
-     * Sets the resource path for the skill icon image, e.g.:
-     *   btn1.setIconPath(skills[0].iconPath);
-     */
+
     public void setIconPath(String path) {
         this.iconPath = path;
     }
 
-    /** Loads (and caches) the icon image. Returns null if unavailable. */
     private BufferedImage loadIcon() {
         if (iconPath == null || iconPath.isEmpty()) return null;
         if (ICON_CACHE.containsKey(iconPath)) return ICON_CACHE.get(iconPath);
@@ -136,7 +132,7 @@ public class SkillButton {
                 g2.drawImage(icon, iconX + 2, iconY + 2, iconSize - 4, iconSize - 4, obs);
             }
         } else {
-            // Fallback: draw skill number centred in the icon box
+
             int numFontSize = Math.max(10, (int)(iconSize * 0.55));
             g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, numFontSize));
             g2.setColor(disabled ? new Color(90, 70, 40) : new Color(255, 230, 140));
@@ -161,12 +157,12 @@ public class SkillButton {
         int totalTextH = headerSize + 4 + nameSize + 4 + manaSize;
         int textStartY = y + (h - totalTextH) / 2 + headerSize;
 
-        // Row 1: "Skill N"
+        // Row 1: Skill N
         g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, headerSize));
         g2.setColor(disabled ? new Color(90, 70, 40) : new Color(50, 25, 0));
         g2.drawString("Skill " + skillNum, textX, textStartY);
 
-        // Row 2: Skill name (trim if too wide)
+        // Row 2: Skill name
         int row2Y = textStartY + headerSize + 4;
         g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, nameSize));
         g2.setColor(disabled ? new Color(80, 60, 35) : new Color(255, 240, 200));

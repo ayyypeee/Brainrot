@@ -84,7 +84,7 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
     }
 
     private void loadAssets(String h1, String h2, Class<?> loader) {
-        try { bgImage = new ImageIcon(loader.getResource("/backgrounds/background.png")).getImage(); } catch (Exception e) {}
+        try { bgImage = new ImageIcon(loader.getResource("/backgrounds/Forest.png")).getImage(); } catch (Exception e) {}
         try { boxImage = ImageIO.read(loader.getResource("/ui/v1_box_skills.png")); } catch (Exception e) {}
         try { vsImage = ImageIO.read(loader.getResource("/ui/vs.png")); } catch (Exception e) {}
         try { platformImage = ImageIO.read(loader.getResource("/level_assets/PLATFORM.png")); } catch (Exception e) {}
@@ -249,7 +249,7 @@ public class BattlePanel extends JPanel implements MouseListener, MouseMotionLis
 
         engine.beginTurn(engine.turnSide);
 
-        // ── NEW: tick effects AFTER stun check so applied effects survive one round ──
+
         if (engine.isSideStunned(engine.turnSide)) {
             String sName = engine.turnSide == 1 ? engine.label1 : engine.label2;
             engine.enqueueDialogue(sName + " is stunned and has to skip their turn!");

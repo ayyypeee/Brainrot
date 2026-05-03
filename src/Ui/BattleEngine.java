@@ -3,6 +3,7 @@ package Ui;
 import entities.*;
 import entities.BattleStats.ActiveEffect;
 import entities.BattleStats.FloatEvent;
+import entities.BattleStats.PassiveAction;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -41,7 +42,6 @@ public class BattleEngine {
     private boolean selfHit          = false;
     private boolean hasPendingDamage = false;
 
-    // ── Rich floating numbers ─────────────────────────────────────────────────
     private final ArrayList<FloatNumber> floatNumbers = new ArrayList<>();
 
     public BattleEngine(String name1, String label1, String name2, String label2) {
@@ -55,14 +55,6 @@ public class BattleEngine {
 
     // ── Turn management ───────────────────────────────────────────────────────
 
-    /**
-     * Called at the START of a side's turn.
-     *
-     * IMPORTANT: we do NOT tick effects here any more.
-     * Effects are ticked inside the battle panels AFTER the stun-skip check,
-     * so a stun/confuse applied during the enemy's turn always survives at
-     * least one full round before it wears off.
-     */
     public void beginTurn(int side) {
         if (side == 1) {
             stats1.regenMana();
@@ -72,46 +64,39 @@ public class BattleEngine {
         }
     }
 
-    /**
-     * Tick DOT / buff effects for the given side and drain their messages.
-     * Call this AFTER the stun-skip check so effects are always consumed in
-     * the round they were meant for.
-     */
     public void tickEffectsForSide(int side) {
-        BattleStats active = side == 1 ? stats1 : stats2;
-        BattleStats other  = side == 1 ? stats2 : stats1;
+        // stats1 = left side (onRight false), stats2 = right side (onRight true)
+        stats1.tickEffects(false);
+        drainFloatEvents(stats1, false);
+        drainStatMessages(stats1);
 
-        boolean activeOnRight = (side == 2);
-
-        active.tickEffects();
-        drainFloatEvents(active, activeOnRight);
-
-        drainStatMessages(active);
-        drainStatMessages(other);
+        stats2.tickEffects(true);
+        drainFloatEvents(stats2, true);
+        drainStatMessages(stats2);
     }
+
 
     public void endTurn(int side) {
         if (side == 2) round++;
-        turnSide       = (side == 1) ? 2 : 1;
+        turnSide         = (side == 1) ? 2 : 1;
         animationPlaying = false;
     }
 
     // ── Skill resolution ──────────────────────────────────────────────────────
 
     public int resolveSkill(int attackerSide, int skillNum) {
-        BattleStats attacker     = attackerSide == 1 ? stats1 : stats2;
-        BattleStats defender     = attackerSide == 1 ? stats2 : stats1;
-        String      attackerName = attackerSide == 1 ? name1  : name2;
-        String      attackerLabel= attackerSide == 1 ? label1 : label2;
+        BattleStats attacker      = attackerSide == 1 ? stats1 : stats2;
+        BattleStats defender      = attackerSide == 1 ? stats2 : stats1;
+        String      attackerName  = attackerSide == 1 ? name1  : name2;
+        String      attackerLabel = attackerSide == 1 ? label1 : label2;
 
-        // attackerOnRight is true when the attacker is Player 2 / AI (right side)
         boolean attackerOnRight = (attackerSide == 2);
 
         CharSkill skill     = CharSkillDB.get(attackerName, skillNum);
         String    skillName = skill != null ? skill.name : "Skill " + skillNum;
 
-        int  dmg    = 0;
-        selfHit = false;
+        int  dmg = 0;
+        selfHit  = false;
 
         if (attackerName.equals("AIP") && skillNum == 3) {
             dmg = attacker.computeBagSmash(defender);
@@ -119,18 +104,16 @@ public class BattleEngine {
             boolean trueDmg = attackerName.equals("Kimmay")
                     && skillNum == 1
                     && new java.util.Random().nextInt(100) < 20;
-            // Pass attackerOnRight so every passive queues floats on the correct side
             dmg = attacker.computeSkill(skillNum, attackerName, defender, trueDmg, attackerOnRight);
         }
 
         if (dmg < 0) {
-            selfHit      = true;
+            selfHit       = true;
             pendingDamage = -dmg;
         } else {
             pendingDamage = dmg;
         }
 
-        // Announcement dialogue
         String announcement = attackerLabel + " used " + skillName + "!";
         if (selfHit) {
             announcement += " They are confused and hit themselves for " + pendingDamage + " damage!";
@@ -153,10 +136,7 @@ public class BattleEngine {
         return dmg;
     }
 
-    /**
-     * Called when the attack animation finishes.
-     * Applies HP changes and drains any queued float events from both BattleStats.
-     */
+
     public int applyPendingDamage() {
         if (!hasPendingDamage) return 0;
         hasPendingDamage = false;
@@ -168,6 +148,7 @@ public class BattleEngine {
         boolean attackerOnRight = (pendingAttacker == 2);
         boolean defenderOnRight = (pendingAttacker == 1);
 
+        // ── 1. Main hit ───────────────────────────────────────────────────────
         if (selfHit) {
             if (dmg > 0) {
                 attacker.addHp(-dmg);
@@ -179,18 +160,41 @@ public class BattleEngine {
             spawnFloat(dmg, FloatNumber.Kind.DAMAGE, defenderOnRight);
         }
 
-        // Drain any extra float events queued by passives (mana, bonus dmg, dodge, etc.)
+        // ── 2. Passive actions
+        applyPassiveActionsFrom(attacker);
+        applyPassiveActionsFrom(defender);
+
+        // ── 3. Leftover float events ──────────────────────────────────────────
         drainFloatEvents(attacker, attackerOnRight);
         drainFloatEvents(defender, defenderOnRight);
 
         return dmg;
     }
 
-    /** Pull FloatEvents from a BattleStats and turn them into live FloatNumbers. */
+
+    private void applyPassiveActionsFrom(BattleStats src) {
+        if (!src.hasPassiveActions()) return;
+        List<PassiveAction> actions = src.drainPassiveActions();
+        for (PassiveAction pa : actions) {
+            // Apply stat changes
+            if (pa.hpDelta != 0)   pa.target.addHp(pa.hpDelta);
+            if (pa.manaDelta != 0) pa.target.addMana(pa.manaDelta);
+
+            // Spawn the visual float
+            if (pa.floatValue > 0) {
+                spawnFloat(pa.floatValue, toKind(pa.floatKind), pa.onRight);
+            }
+
+            // Queue the message for the passive dialogue phase
+            if (pa.message != null && !pa.message.isEmpty()) {
+                passiveQueue.add(pa.message);
+            }
+        }
+    }
+
     private void drainFloatEvents(BattleStats src, boolean onRight) {
         FloatEvent fe;
         while ((fe = src.pollFloatEvent()) != null) {
-            // FloatEvent.onRight is already set correctly by BattleStats, use it directly
             spawnFloat(fe.value, toKind(fe.kind), fe.onRight);
         }
     }
@@ -201,6 +205,7 @@ public class BattleEngine {
             case MANA_DRAIN:   return FloatNumber.Kind.MANA_DRAIN;
             case MANA_GAIN:    return FloatNumber.Kind.MANA_GAIN;
             case DODGE:        return FloatNumber.Kind.DODGE;
+            case HEAL:         return FloatNumber.Kind.HEAL;
             default:           return FloatNumber.Kind.DAMAGE;
         }
     }
@@ -211,8 +216,6 @@ public class BattleEngine {
 
     public boolean hasPendingDamage() { return hasPendingDamage; }
     public int     getPendingDamage() { return pendingDamage; }
-
-    // ── Passive message queue ─────────────────────────────────────────────────
 
     public void drainPassiveQueue() {
         for (String msg : passiveQueue) enqueueDialogue(msg);
@@ -265,7 +268,7 @@ public class BattleEngine {
     }
 
     public void consumeStun(int side) {
-        BattleStats s  = side == 1 ? stats1 : stats2;
+        BattleStats s   = side == 1 ? stats1 : stats2;
         ActiveEffect ae = findEffect(s, StatusEffect.STUN);
         if (ae != null) { ae.turnsLeft--; if (ae.turnsLeft <= 0) s.removeEffect(StatusEffect.STUN); }
         ae = findEffect(s, StatusEffect.HEAVY_STUN);
@@ -312,16 +315,16 @@ public class BattleEngine {
     }
 
     private void startNextLine() {
-        currentLine   = dialogueQueue.remove(0);
-        charsRevealed = 0;
-        charTick      = 0;
-        lineFinished  = false;
+        currentLine    = dialogueQueue.remove(0);
+        charsRevealed  = 0;
+        charTick       = 0;
+        lineFinished   = false;
         dialogueActive = true;
     }
 
-    public String  getVisibleText()   { return dialogueActive && currentLine != null ? currentLine.substring(0, charsRevealed) : ""; }
-    public boolean isLineFinished()   { return lineFinished; }
-    public boolean hasQueuedLines()   { return !dialogueQueue.isEmpty(); }
+    public String  getVisibleText() { return dialogueActive && currentLine != null ? currentLine.substring(0, charsRevealed) : ""; }
+    public boolean isLineFinished() { return lineFinished; }
+    public boolean hasQueuedLines() { return !dialogueQueue.isEmpty(); }
 
     // ── Character full-name map ───────────────────────────────────────────────
 
@@ -359,7 +362,6 @@ public class BattleEngine {
         int mnBarY = hpBarY + barH + (int)(sh * 0.006);
         int iconsY = mnBarY + manaH + (int)(sh * 0.006);
 
-        // Left side (player 1)
         int hx1 = (int)(sw * 0.01);
         drawHead(g2, head1, hx1, topY, headSz, new Color(100, 200, 255), obs);
         int bx1 = hx1 + headSz + headGap;
@@ -370,7 +372,6 @@ public class BattleEngine {
         drawManaBar(g2, bx1, mnBarY, barMaxW, manaH, stats1);
         drawStatusIcons(g2, bx1, iconsY, stats1, sh);
 
-        // Right side (player 2)
         int hx2 = sw - (int)(sw * 0.01) - headSz;
         drawHead(g2, head2, hx2, topY, headSz, new Color(255, 150, 100), obs);
         int bxR = hx2 - headGap;
@@ -382,9 +383,8 @@ public class BattleEngine {
         drawManaBar(g2, bx2, mnBarY, barMaxW, manaH, stats2);
         drawStatusIcons(g2, bx2, iconsY, stats2, sh);
 
-        // Centre
-        int cx   = sw / 2;
-        int rfs  = Math.max(14, (int)(sh * 0.028));
+        int cx  = sw / 2;
+        int rfs = Math.max(14, (int)(sh * 0.028));
         g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, rfs));
         g2.setColor(Color.WHITE);
         String roundStr = "ROUND " + round;
@@ -397,7 +397,6 @@ public class BattleEngine {
 
         tickAndDrawFloatNumbers(g2, sw, sh);
 
-        // Head tooltips
         if (tooltipText != null) {
             if (tooltipX >= hx1 && tooltipX <= hx1 + headSz && tooltipY >= topY && tooltipY <= topY + headSz)
                 drawCharTooltip(g2, name1, stats1, tooltipX, tooltipY, sw, sh);
@@ -414,73 +413,40 @@ public class BattleEngine {
     // ── Rich floating numbers ─────────────────────────────────────────────────
 
     private static class FloatNumber {
-        enum Kind { DAMAGE, BONUS_DAMAGE, MANA_DRAIN, MANA_GAIN, DODGE }
-
-        int   value;
-        Kind  kind;
-        float x, y;
-        int   alpha    = 255;
-        boolean onRight;
-
-        FloatNumber(int value, Kind kind, boolean onRight) {
-            this.value   = value;
-            this.kind    = kind;
-            this.onRight = onRight;
-        }
+        enum Kind { DAMAGE, BONUS_DAMAGE, MANA_DRAIN, MANA_GAIN, DODGE, HEAL }
+        int value; Kind kind; float x, y; int alpha = 255; boolean onRight;
+        FloatNumber(int v, Kind k, boolean r) { value = v; kind = k; onRight = r; }
     }
 
     private void tickAndDrawFloatNumbers(Graphics2D g2, int sw, int sh) {
         ArrayList<FloatNumber> toRemove = new ArrayList<>();
-
         for (FloatNumber fn : floatNumbers) {
             if (fn.y == 0) {
                 fn.x = fn.onRight ? sw * 0.72f : sw * 0.22f;
                 fn.y = sh * 0.38f - (floatNumbers.indexOf(fn) * sh * 0.05f);
             }
-
             fn.y    -= 1.5f;
             fn.alpha = Math.max(0, fn.alpha - 5);
             if (fn.alpha <= 0) { toRemove.add(fn); continue; }
 
-            Color  col;
-            String label;
-
+            Color col; String label;
             switch (fn.kind) {
-                case BONUS_DAMAGE:
-                    col   = new Color(255, 140, 0, fn.alpha);
-                    label = "+" + fn.value;
-                    break;
-                case MANA_DRAIN:
-                    col   = new Color(80, 120, 255, fn.alpha);
-                    label = "-" + fn.value + " MP";
-                    break;
-                case MANA_GAIN:
-                    col   = new Color(80, 200, 255, fn.alpha);
-                    label = "+" + fn.value + " MP";
-                    break;
-                case DODGE:
-                    col   = new Color(180, 255, 180, fn.alpha);
-                    label = "DODGED!";
-                    break;
-                default:
-                    col   = new Color(255, 60, 60, fn.alpha);
-                    label = "-" + fn.value;
-                    break;
+                case BONUS_DAMAGE: col = new Color(255,140,  0,fn.alpha); label = "+" + fn.value;         break;
+                case MANA_DRAIN:   col = new Color( 80,120,255,fn.alpha); label = "-" + fn.value + " MP"; break;
+                case MANA_GAIN:    col = new Color( 80,200,255,fn.alpha); label = "+" + fn.value + " MP"; break;
+                case DODGE:        col = new Color(180,255,180,fn.alpha); label = "DODGED!";               break;
+                case HEAL:         col = new Color( 60,230, 80,fn.alpha); label = "+" + fn.value + " HP"; break;
+                default:           col = new Color(255, 60, 60,fn.alpha); label = "-" + fn.value;         break;
             }
-
             int fs = fn.kind == FloatNumber.Kind.DODGE
                     ? Math.max(18, (int)(sh * 0.040))
                     : Math.max(22, (int)(sh * 0.055));
-
             g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, fs));
-
             g2.setColor(new Color(0, 0, 0, fn.alpha / 2));
             g2.drawString(label, (int)fn.x + 2, (int)fn.y + 2);
-
             g2.setColor(col);
             g2.drawString(label, (int)fn.x, (int)fn.y);
         }
-
         floatNumbers.removeAll(toRemove);
     }
 
@@ -489,10 +455,7 @@ public class BattleEngine {
     private void drawHead(Graphics2D g2, BufferedImage img, int x, int y,
                           int size, Color fallback, Component obs) {
         if (img != null) g2.drawImage(img, x, y, size, size, obs);
-        else {
-            g2.setColor(fallback);
-            g2.fillRect(x, y, size, size);
-        }
+        else { g2.setColor(fallback); g2.fillRect(x, y, size, size); }
     }
 
     // ── Char tooltip ──────────────────────────────────────────────────────────
@@ -501,12 +464,11 @@ public class BattleEngine {
                                  int mx, int my, int sw, int sh) {
         CharSkill[] skills   = CharSkillDB.getAll(charName);
         String      fullName = getFullCharacterName(charName);
-
         StringBuilder sb = new StringBuilder(fullName);
         for (int i = 0; i < skills.length; i++) {
-            CharSkill sk      = skills[i];
-            String    manaInfo = i == 0 ? "[+" + sk.manaRegen + " MP]" : "[-" + sk.manaCost + " MP]";
-            String    dmgRange = "[" + sk.minDmg + "-" + sk.maxDmg + " Dmg]";
+            CharSkill sk = skills[i];
+            String manaInfo = i == 0 ? "[+" + sk.manaRegen + " MP]" : "[-" + sk.manaCost + " MP]";
+            String dmgRange = "[" + sk.minDmg + "-" + sk.maxDmg + " Dmg]";
             sb.append("\nSkill ").append(i + 1).append(" ").append(manaInfo)
                     .append(" ").append(sk.name).append(" ").append(dmgRange)
                     .append(" : ").append(sk.passiveDesc);
@@ -520,24 +482,21 @@ public class BattleEngine {
                            BattleStats stats, boolean ltr) {
         g2.setColor(new Color(60, 0, 0));
         g2.fillRect(x, y, maxW, h);
-
         int fillW = (int)(maxW * (double) stats.hp / BattleStats.MAX_HP);
         if (fillW > 0) {
             float ratio = (float) stats.hp / BattleStats.MAX_HP;
             g2.setColor(ratio > 0.6f ? new Color(60, 210, 60)
                     : ratio > 0.3f   ? new Color(230, 210, 40)
-                    : new Color(230, 50, 50));
+                    :                  new Color(230,  50, 50));
             g2.fillRect(ltr ? x : x + maxW - fillW, y, fillW, h);
         }
-
         g2.setColor(Color.WHITE);
         g2.setStroke(new BasicStroke(2f));
         g2.drawRect(x, y, maxW, h);
         g2.setStroke(new BasicStroke(1f));
-
-        int    currentHp = Math.max(0, stats.hp);
-        String hpStr     = currentHp + "/" + BattleStats.MAX_HP;
-        int    pfs       = Math.max(9, h - 2);
+        int currentHp = Math.max(0, stats.hp);
+        String hpStr = currentHp + "/" + BattleStats.MAX_HP;
+        int pfs = Math.max(9, h - 2);
         g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, pfs));
         g2.setColor(Color.WHITE);
         FontMetrics fm = g2.getFontMetrics();
@@ -549,17 +508,13 @@ public class BattleEngine {
         g2.setColor(new Color(10, 10, 60));
         g2.fillRect(x, y, maxW, h);
         int fillW = (int)(maxW * (double) stats.mana / BattleStats.MAX_MANA);
-        if (fillW > 0) {
-            g2.setColor(new Color(60, 120, 240));
-            g2.fillRect(x, y, fillW, h);
-        }
+        if (fillW > 0) { g2.setColor(new Color(60, 120, 240)); g2.fillRect(x, y, fillW, h); }
         g2.setColor(new Color(100, 160, 255));
         g2.setStroke(new BasicStroke(1.5f));
         g2.drawRect(x, y, maxW, h);
         g2.setStroke(new BasicStroke(1f));
-
         String mStr = stats.mana + " MP";
-        int    mfs  = Math.max(8, h - 2);
+        int mfs = Math.max(8, h - 2);
         g2.setFont(new Font(Font.MONOSPACED, Font.PLAIN, mfs));
         g2.setColor(Color.WHITE);
         FontMetrics fm = g2.getFontMetrics();
@@ -573,24 +528,19 @@ public class BattleEngine {
         List<ActiveEffect> effects = stats.getEffects();
         if (effects.isEmpty()) return;
         int iconSz = Math.max(18, (int)(sh * 0.030));
-        int gap    = 3;
-        int cx     = x;
+        int gap = 3, cx = x;
         for (ActiveEffect ae : effects) {
             StatusEffect se = ae.type;
-            g2.setColor(new Color(se.colour.getRed(), se.colour.getGreen(),
-                    se.colour.getBlue(), 180));
+            g2.setColor(new Color(se.colour.getRed(), se.colour.getGreen(), se.colour.getBlue(), 180));
             g2.fillRoundRect(cx, y, iconSz + 22, iconSz, 8, 8);
             g2.setColor(se.colour.darker());
             g2.setStroke(new BasicStroke(1.5f));
             g2.drawRoundRect(cx, y, iconSz + 22, iconSz, 8, 8);
             g2.setStroke(new BasicStroke(1f));
-            int icoFs = Math.max(10, iconSz - 4);
-            g2.setFont(new Font("Segoe UI Emoji", Font.PLAIN, icoFs));
+            g2.setFont(new Font("Segoe UI Emoji", Font.PLAIN, Math.max(10, iconSz - 4)));
             g2.setColor(Color.WHITE);
             g2.drawString(se.icon, cx + 2, y + iconSz - 3);
-            int numFs = Math.max(8, iconSz - 8);
-            g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, numFs));
-            g2.setColor(Color.WHITE);
+            g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, Math.max(8, iconSz - 8)));
             g2.drawString(String.valueOf(ae.turnsLeft), cx + iconSz + 4, y + iconSz - 3);
             cx += iconSz + 22 + gap;
         }
@@ -605,24 +555,18 @@ public class BattleEngine {
         drawOneSkillMeta(g2, side, 3, b3, sh);
     }
 
-    private void drawOneSkillMeta(Graphics2D g2, int side, int skillNum,
-                                  Rectangle b, int sh) { /* intentionally empty */ }
+    private void drawOneSkillMeta(Graphics2D g2, int side, int skillNum, Rectangle b, int sh) { /* empty */ }
 
     public void drawSkillTooltip(Graphics2D g2, int side, int skillNum,
                                  int mouseX, int mouseY, int sw, int sh) {
         String    charName = side == 1 ? name1 : name2;
         CharSkill skill    = CharSkillDB.get(charName, skillNum);
         if (skill == null) return;
-
-        String fullName = getFullCharacterName(charName);
-        String manaLine = skillNum == 1
-                ? "Mana: +" + skill.manaRegen + " (Regen)"
-                : "Mana: -" + skill.manaCost  + " (Cost)";
-        String dmgLine     = "Damage: " + skill.minDmg + " - " + skill.maxDmg;
-        String passiveLine = "Passive: " + skill.passiveDesc;
-
+        String fullName    = getFullCharacterName(charName);
+        String manaLine    = skillNum == 1 ? "Mana: +" + skill.manaRegen + " (Regen)" : "Mana: -" + skill.manaCost + " (Cost)";
         drawTooltip(g2,
-                fullName + "\n" + skill.name + "\n" + dmgLine + "\n" + manaLine + "\n" + passiveLine,
+                fullName + "\n" + skill.name + "\nDamage: " + skill.minDmg + " - " + skill.maxDmg
+                        + "\n" + manaLine + "\nPassive: " + skill.passiveDesc,
                 mouseX, mouseY, sw, sh);
     }
 
@@ -630,51 +574,37 @@ public class BattleEngine {
 
     public void drawDialogueBox(Graphics2D g2, int sw, int sh) {
         if (!dialogueActive) return;
-        int boxH = (int)(sh * 0.13);
-        int boxW = (int)(sw * 0.70);
-        int boxX = (sw - boxW) / 2;
-        int boxY = sh - boxH - (int)(sh * 0.22);
+        int boxH = (int)(sh * 0.13), boxW = (int)(sw * 0.70);
+        int boxX = (sw - boxW) / 2,  boxY = sh - boxH - (int)(sh * 0.22);
         int pad  = (int)(sh * 0.015);
-
         g2.setColor(new Color(10, 10, 30, 220));
         g2.fillRoundRect(boxX, boxY, boxW, boxH, 16, 16);
         g2.setColor(new Color(100, 160, 255));
         g2.setStroke(new BasicStroke(2f));
         g2.drawRoundRect(boxX, boxY, boxW, boxH, 16, 16);
         g2.setStroke(new BasicStroke(1f));
-
-        int     fs      = Math.max(13, (int)(sh * 0.025));
+        int fs = Math.max(13, (int)(sh * 0.025));
         g2.setFont(new Font(Font.MONOSPACED, Font.PLAIN, fs));
         g2.setColor(Color.WHITE);
-
-        String      visible  = getVisibleText();
-        FontMetrics fm       = g2.getFontMetrics();
-        int         maxLineW = boxW - pad * 2;
-        String[]    words    = visible.split(" ");
-        StringBuilder line   = new StringBuilder();
+        String visible = getVisibleText();
+        FontMetrics fm = g2.getFontMetrics();
+        int maxLineW = boxW - pad * 2;
+        StringBuilder line = new StringBuilder();
         int lineY = boxY + pad + fs;
-        for (String word : words) {
+        for (String word : visible.split(" ")) {
             String test = line.length() == 0 ? word : line + " " + word;
             if (fm.stringWidth(test) > maxLineW) {
                 g2.drawString(line.toString(), boxX + pad, lineY);
-                lineY += fs + 4;
-                line   = new StringBuilder(word);
-            } else {
-                if (line.length() > 0) line.append(" ");
-                line.append(word);
-            }
+                lineY += fs + 4; line = new StringBuilder(word);
+            } else { if (line.length() > 0) line.append(" "); line.append(word); }
         }
         if (line.length() > 0) g2.drawString(line.toString(), boxX + pad, lineY);
-
         if (lineFinished) {
             String prompt = hasQueuedLines() ? "▶ ENTER" : "▶ CLOSE";
-            int    pfs    = Math.max(10, (int)(sh * 0.018));
+            int pfs = Math.max(10, (int)(sh * 0.018));
             g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, pfs));
-            g2.setColor(new Color(255, 220, 80,
-                    (int)(180 + 75 * Math.sin(System.currentTimeMillis() / 300.0))));
-            g2.drawString(prompt,
-                    boxX + boxW - g2.getFontMetrics().stringWidth(prompt) - pad,
-                    boxY + boxH - pad / 2);
+            g2.setColor(new Color(255, 220, 80, (int)(180 + 75 * Math.sin(System.currentTimeMillis() / 300.0))));
+            g2.drawString(prompt, boxX + boxW - g2.getFontMetrics().stringWidth(prompt) - pad, boxY + boxH - pad / 2);
         }
     }
 
@@ -682,20 +612,17 @@ public class BattleEngine {
 
     public void drawTooltip(Graphics2D g2, String text, int mx, int my, int sw, int sh) {
         if (text == null || text.isEmpty()) return;
-        String[]    lines = text.split("\n");
-        int         fs    = Math.max(11, (int)(sh * 0.020));
+        String[] lines = text.split("\n");
+        int fs = Math.max(11, (int)(sh * 0.020));
         g2.setFont(new Font(Font.MONOSPACED, Font.PLAIN, fs));
-        FontMetrics fm    = g2.getFontMetrics();
+        FontMetrics fm = g2.getFontMetrics();
         int maxW = 0;
         for (String l : lines) maxW = Math.max(maxW, fm.stringWidth(l));
-        int pad  = 10;
-        int boxW = maxW + pad * 2;
-        int boxH = lines.length * (fs + 4) + pad;
-        int bx   = mx + 16;
-        int by   = my - boxH / 2;
+        int pad = 10, boxW = maxW + pad * 2, boxH = lines.length * (fs + 4) + pad;
+        int bx = mx + 16, by = my - boxH / 2;
         if (bx + boxW > sw - 4) bx = mx - boxW - 4;
-        if (by < 4)              by = 4;
-        if (by + boxH > sh - 4)  by = sh - boxH - 4;
+        if (by < 4) by = 4;
+        if (by + boxH > sh - 4) by = sh - boxH - 4;
         g2.setColor(new Color(8, 8, 28, 245));
         g2.fillRoundRect(bx, by, boxW, boxH, 10, 10);
         g2.setColor(new Color(180, 200, 255));
@@ -704,9 +631,7 @@ public class BattleEngine {
         g2.setStroke(new BasicStroke(1f));
         int ly = by + pad + fs - 2;
         for (int i = 0; i < lines.length; i++) {
-            g2.setColor(i == 0 ? new Color(255, 220, 80)
-                    : i == 1  ? new Color(180, 230, 255)
-                    : Color.WHITE);
+            g2.setColor(i == 0 ? new Color(255,220,80) : i == 1 ? new Color(180,230,255) : Color.WHITE);
             g2.drawString(lines[i], bx + pad, ly);
             ly += fs + 4;
         }

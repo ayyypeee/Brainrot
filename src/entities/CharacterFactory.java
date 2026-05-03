@@ -2,38 +2,42 @@ package entities;
 
 import java.util.ArrayList;
 
+// This class holds all the character data and builds fighters when needed.
 public class CharacterFactory {
 
-    private final ArrayList<String>   names          = new ArrayList<>();
-    private final ArrayList<String>   idleGifPaths   = new ArrayList<>();
-    private final ArrayList<String>   headPaths      = new ArrayList<>();
-    private final ArrayList<String[]> walkFramePaths = new ArrayList<>();
-    private final ArrayList<String[]> skill1Paths    = new ArrayList<>();
-    private final ArrayList<String[]> skill2Paths    = new ArrayList<>();
-    private final ArrayList<String[]> skill3Paths    = new ArrayList<>();
-    private final ArrayList<String>   skill1Names    = new ArrayList<>();
-    private final ArrayList<String>   skill2Names    = new ArrayList<>();
-    private final ArrayList<String>   skill3Names    = new ArrayList<>();
-    private final ArrayList<int[]>    skill1IconRect = new ArrayList<>();
-    private final ArrayList<int[]>    skill2IconRect = new ArrayList<>();
-    private final ArrayList<int[]>    skill3IconRect = new ArrayList<>();
+    // These lists store everything about the characters in matching order.
+    private ArrayList<String>   names          = new ArrayList<String>();
+    private ArrayList<String>   idleGifPaths   = new ArrayList<String>();
+    private ArrayList<String>   headPaths      = new ArrayList<String>();
+    private ArrayList<String[]> walkFramePaths = new ArrayList<String[]>();
+    private ArrayList<String[]> skill1Paths    = new ArrayList<String[]>();
+    private ArrayList<String[]> skill2Paths    = new ArrayList<String[]>();
+    private ArrayList<String[]> skill3Paths    = new ArrayList<String[]>();
+    private ArrayList<String>   skill1Names    = new ArrayList<String>();
+    private ArrayList<String>   skill2Names    = new ArrayList<String>();
+    private ArrayList<String>   skill3Names    = new ArrayList<String>();
+    private ArrayList<int[]>    skill1IconRect = new ArrayList<int[]>();
+    private ArrayList<int[]>    skill2IconRect = new ArrayList<int[]>();
+    private ArrayList<int[]>    skill3IconRect = new ArrayList<int[]>();
 
+    // The constructor sets up all the characters right away.
     public CharacterFactory() {
         registerAllCharacters();
     }
 
+    // This helper sets up the four walking images for a character.
     private static String[] walkFrames(String base) {
-        return new String[]{
-                "/characters/walk_png/" + base + ".png",
-                "/characters/walk_png/" + base + " (2).png",
-                "/characters/walk_png/" + base + " (3).png",
-                "/characters/walk_png/" + base + " (4).png"
-        };
+        String[] paths = new String[4];
+        paths[0] = "/characters/walk_png/" + base + ".png";
+        paths[1] = "/characters/walk_png/" + base + " (2).png";
+        paths[2] = "/characters/walk_png/" + base + " (3).png";
+        paths[3] = "/characters/walk_png/" + base + " (4).png";
+        return paths;
     }
 
+    // This loads all the playable fighters with their images and skills.
     private void registerAllCharacters() {
 
-        // ── AIP ───────────────────────────────────────────────────────────────
         add("AIP",
                 "/characters/idle_gif/v1_aip_moving.gif",
                 "/characters/heads/AIP(Head).png",
@@ -54,7 +58,6 @@ public class CharacterFactory {
                         "/characters/skills/skill3/v2_aip skill 3(third).png"
                 }, "Bag Smash", new int[]{360, 500, 115, 115});
 
-        // ── Christian ─────────────────────────────────────────────────────────
         add("Christian",
                 "/characters/idle_gif/v1_christian_moving_idle.gif",
                 "/characters/heads/christian(Head).png",
@@ -75,7 +78,6 @@ public class CharacterFactory {
                         "/characters/skills/skill3/v2_christian skill 3(third).png"
                 }, "Eye Beam", new int[]{730, 752, 115, 115});
 
-        // ── Kimmay ────────────────────────────────────────────────────────────
         add("Kimmay",
                 "/characters/idle_gif/v1_kimmay_moving_idle.gif",
                 "/characters/heads/kimmay(Head).png",
@@ -96,7 +98,6 @@ public class CharacterFactory {
                         "/characters/skills/skill3/v2_kim skill 3(third).png"
                 }, "Radiance", new int[]{730, 500, 115, 115});
 
-        // ── Dianne ────────────────────────────────────────────────────────────
         add("Dianne",
                 "/characters/idle_gif/v1_dianne_moving_idle.gif",
                 "/characters/heads/dianne (2)(Head).png",
@@ -117,7 +118,6 @@ public class CharacterFactory {
                         "/characters/skills/skill3/v2_dianne skill 3(third).png"
                 }, "Labyrinth", new int[]{360, 626, 115, 115});
 
-        // ── Cyberg ────────────────────────────────────────────────────────────
         add("Cyberg",
                 "/characters/idle_gif/v1_cyberg_moving_idle.gif",
                 "/characters/heads/cyberg(Head).png",
@@ -139,7 +139,6 @@ public class CharacterFactory {
                         "/characters/skills/skill3/v2_cyberg skill 3(third).png"
                 }, "Shadow Jab", new int[]{360, 752, 115, 115});
 
-        // ── Tung Tung ─────────────────────────────────────────────────────────
         add("Tung Tung",
                 "/characters/idle_gif/v1_tungtung_moving_idle.gif",
                 "/characters/heads/tungtung(Head).png",
@@ -163,7 +162,6 @@ public class CharacterFactory {
                         "/characters/skills/skill3/tungtung_sk3_fr3.png"
                 }, "Lightning", new int[]{360, 372, 115, 115});
 
-        // ── Cappucino ─────────────────────────────────────────────────────────
         add("Cappucino",
                 "/characters/idle_gif/v1_cappucino_moving_idle.gif",
                 "/characters/heads/cappucino head.png",
@@ -184,7 +182,6 @@ public class CharacterFactory {
                         "/characters/skills/skill3/assasino_sk3_fr3.png"
                 }, "Pentagram", new int[]{730, 372, 115, 115});
 
-        // ── Ballerina ─────────────────────────────────────────────────────────
         add("Ballerina",
                 "/characters/idle_gif/v1_ballerina_moving_idle.gif",
                 "/characters/heads/ballerina(Head).png",
@@ -205,7 +202,6 @@ public class CharacterFactory {
                         "/characters/skills/skill3/ballerina_sk3_fr3.png"
                 }, "Rose Storm", new int[]{730, 245, 115, 115});
 
-        // ── Tralalelo ─────────────────────────────────────────────────────────
         add("Tralalelo",
                 "/characters/idle_gif/v1_tralalelo_moving_idle.gif",
                 "/characters/heads/tralalelo(Head).png",
@@ -227,6 +223,7 @@ public class CharacterFactory {
                 }, "Explosion", new int[]{360, 372, 115, 115});
     }
 
+    // This saves a single fighters information into the lists.
     private void add(String name, String idleGif, String headPath,
                      String[] walkPaths,
                      String[] sk1, String sk1Name, int[] sk1Icon,
@@ -236,16 +233,22 @@ public class CharacterFactory {
         idleGifPaths.add(idleGif);
         headPaths.add(headPath);
         walkFramePaths.add(walkPaths);
-        skill1Paths.add(sk1); skill1Names.add(sk1Name); skill1IconRect.add(sk1Icon);
-        skill2Paths.add(sk2); skill2Names.add(sk2Name); skill2IconRect.add(sk2Icon);
-        skill3Paths.add(sk3); skill3Names.add(sk3Name); skill3IconRect.add(sk3Icon);
+        skill1Paths.add(sk1);
+        skill1Names.add(sk1Name);
+        skill1IconRect.add(sk1Icon);
+        skill2Paths.add(sk2);
+        skill2Names.add(sk2Name);
+        skill2IconRect.add(sk2Icon);
+        skill3Paths.add(sk3);
+        skill3Names.add(sk3Name);
+        skill3IconRect.add(sk3Icon);
     }
 
+    // These grab specific details using the character index.
     public int      getCount()            { return names.size(); }
     public String   getName(int i)        { return names.get(i); }
     public String   getIdleGifPath(int i) { return idleGifPaths.get(i); }
     public String   getHeadPath(int i)    { return headPaths.get(i); }
-    public String   getWalkSheet(int i)   { return walkFramePaths.get(i)[0]; }
     public String   getSkill1Name(int i)  { return skill1Names.get(i); }
     public String   getSkill2Name(int i)  { return skill2Names.get(i); }
     public String   getSkill3Name(int i)  { return skill3Names.get(i); }
@@ -256,13 +259,13 @@ public class CharacterFactory {
     public String[] getSkill2Paths(int i) { return skill2Paths.get(i); }
     public String[] getSkill3Paths(int i) { return skill3Paths.get(i); }
 
-    // ── THE KEY FIX: pass the character name as the first argument ────────────
+    // This creates a character ready to be drawn on the screen.
     public Character buildCharacter(int index, Class<?> loader, int screenW, int screenH) {
         int charH = (int)(screenH * 0.28);
         int charW = (int)(charH  * 0.57);
 
         return new Character(
-                names.get(index),          // charName — so SkillData gets setSoundInfo called
+                names.get(index),
                 walkFramePaths.get(index),
                 charW, charH,
                 idleGifPaths.get(index),

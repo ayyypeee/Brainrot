@@ -88,7 +88,7 @@ public class LoginScreen extends JPanel implements ActionListener {
         // Set up the full-screen window.
         window = new JFrame("Login");
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        window.setUndecorated(true);
+        window.setUndecorated(true);    
         window.add(this);
 
         GraphicsEnvironment ge  = GraphicsEnvironment.getLocalGraphicsEnvironment();

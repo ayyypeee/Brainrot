@@ -296,7 +296,7 @@ public class BattleStats {
                     }
                 }
             } else if (skillNum == 3) {
-                if (roll < 25) {
+                if (roll < 250) {
                     // 2 so that after tickEffects runs this turn, it becomes 1 for the enemy's next turn
                     target.applyEffect(StatusEffect.SILENCE, 2);
                     addMessage(target.name + " is totally silenced and cannot use complex skills next turn!");
@@ -310,7 +310,7 @@ public class BattleStats {
                             attackerOnRight, "Ballerina gracefully recovered 6 health points!");
                 }
             } else if (skillNum == 2) {
-                if (roll < 25) {
+                if (roll < 250) {
                     // 2 so that after tickEffects runs this turn, dodge is still active next turn
                     applyEffect(StatusEffect.DODGE, 2);
                     addMessage("Ballerina prepares to nimbly dodge the very next attack!");

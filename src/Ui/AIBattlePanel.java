@@ -1,6 +1,7 @@
 package Ui;
 
 import entities.Character;
+import entities.BattleStats;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
@@ -14,20 +15,36 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
     private final Character ai;
 
     private static final boolean PLAYER_FACES_RIGHT = true;
-    private static final boolean AI_FACES_RIGHT = false;
+    private static final boolean AI_FACES_RIGHT     = false;
 
     private final String playerName, aiName;
 
     private Image bgImage;
     private BufferedImage boxImage, vsImage, platformImage;
+    // Keep head paths so we can re-assign them after engine reset
+    private BufferedImage head1Img, head2Img;
 
-    private final BattleEngine engine;
+    private BattleEngine engine;
 
     private enum Phase { IDLE, APPROACHING, ANIMATING, IMPACTED, RETREATING, PASSIVE_MSG }
     private Phase phase = Phase.IDLE;
 
-    private boolean gameOver = false;
-    private String winner = "";
+    private boolean roundOver = false;
+    private boolean matchOver = false;
+    private String  roundWinnerLabel = "";
+    private String  matchWinnerLabel = "";
+
+    // ── Best-of-3 tracking ────────────────────────────────────────────────────
+    private int winsPlayer = 0;
+    private int winsAI     = 0;
+    private int matchRound = 1;
+    private static final int WINS_NEEDED = 2;
+
+    // Overlay state
+    private boolean showingRoundOverlay = false;
+    private long    roundOverlayStart   = 0;
+    private static final int ROUND_OVERLAY_MS = 2200;
+
     private boolean paused = false;
 
     private int groundY, btnW, btnH, btnY;
@@ -43,8 +60,10 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
 
     private PauseMenuOverlay pauseMenu;
 
-    // ── Restart action ────────────────────────────────────────────────────────
     private final Runnable restartAction;
+    private final Class<?> loader;
+    private final String   playerHeadPath;
+    private final String   aiHeadPath;
 
     public AIBattlePanel(
             Character player, Character ai,
@@ -57,11 +76,14 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
             Class<?> loader,
             Runnable restartAction) {
 
-        this.player = player;
-        this.ai = ai;
-        this.playerName = playerName;
-        this.aiName = aiName;
-        this.restartAction = restartAction;
+        this.player         = player;
+        this.ai             = ai;
+        this.playerName     = playerName;
+        this.aiName         = aiName;
+        this.restartAction  = restartAction;
+        this.loader         = loader;
+        this.playerHeadPath = playerHead;
+        this.aiHeadPath     = aiHead;
         MusicPlayer.stop();
 
         engine = new BattleEngine(playerName, playerName, aiName, "Enemy " + aiName);
@@ -84,28 +106,32 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
         setupWindow();
         SwingUtilities.invokeLater(() -> { calculateLayout(); placeCharacters(); });
 
-        engine.enqueueDialogue("The battle begins! " + playerName + " versus " + aiName + "!");
-        engine.enqueueDialogue("Round 1! It is your turn. Make your move!");
+        engine.enqueueDialogue("Match begins! Best of 3 rounds. " + playerName + " vs " + aiName + "!");
+        engine.enqueueDialogue("Round 1! Your turn. Make your move!");
     }
 
-    private void loadAssets(String playerHead, String aiHead, Class<?> loader) {
-        try { bgImage = new ImageIcon(loader.getResource("/backgrounds/background.png")).getImage(); } catch (Exception e) {}
-        try { boxImage = ImageIO.read(loader.getResource("/ui/v1_box_skills.png")); } catch (Exception e) {}
-        try { vsImage = ImageIO.read(loader.getResource("/ui/Guardians_Of_Sanity__1_.png")); } catch (Exception e) {
-            try { vsImage = ImageIO.read(loader.getResource("/ui/vs.png")); } catch (Exception e2) {}
+    private void loadAssets(String playerHead, String aiHead, Class<?> ldr) {
+        try { bgImage = new ImageIcon(ldr.getResource("/backgrounds/background.png")).getImage(); } catch (Exception e) {}
+        try { boxImage = ImageIO.read(ldr.getResource("/ui/v1_box_skills.png")); } catch (Exception e) {}
+        try {
+            vsImage = ImageIO.read(ldr.getResource("/ui/Guardians_Of_Sanity__1_.png"));
+        } catch (Exception e) {
+            try { vsImage = ImageIO.read(ldr.getResource("/ui/vs.png")); } catch (Exception e2) {}
         }
-        try { platformImage = ImageIO.read(loader.getResource("/level_assets/PLATFORM.png")); } catch (Exception e) {}
-        if (playerHead != null) try { engine.head1 = ImageIO.read(loader.getResource(playerHead)); } catch (Exception e) {}
-        if (aiHead != null) try { engine.head2 = ImageIO.read(loader.getResource(aiHead)); } catch (Exception e) {}
+        try { platformImage = ImageIO.read(ldr.getResource("/level_assets/PLATFORM.png")); } catch (Exception e) {}
+        if (playerHead != null) try { head1Img = ImageIO.read(ldr.getResource(playerHead)); } catch (Exception e) {}
+        if (aiHead     != null) try { head2Img = ImageIO.read(ldr.getResource(aiHead));     } catch (Exception e) {}
+        engine.head1 = head1Img;
+        engine.head2 = head2Img;
     }
 
     private void calculateLayout() {
         int sw = getWidth(), sh = getHeight();
         btnH = (int)(sh * 0.16);
         btnW = (int)(sw * 0.28);
-        int gap = (int)(sw * 0.02);
+        int gap    = (int)(sw * 0.02);
         int startX = (sw - btnW * 3 - gap * 2) / 2;
-        btnY = sh - btnH - (int)(sh * 0.02);
+        btnY    = sh - btnH - (int)(sh * 0.02);
         groundY = (int)(sh * 0.60);
         rebuildButtons(startX, gap);
         layoutReady = true;
@@ -114,9 +140,9 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
     private void placeCharacters() {
         int sw = getWidth();
         player.facingRight = PLAYER_FACES_RIGHT;
-        ai.facingRight = AI_FACES_RIGHT;
-        player.placeOnPlatform(sw / 4 - player.getWidth() / 2, groundY);
-        ai.placeOnPlatform(sw * 3 / 4 - ai.getWidth() / 2, groundY);
+        ai.facingRight     = AI_FACES_RIGHT;
+        player.placeOnPlatform(sw / 4 - player.getWidth() / 2,  groundY);
+        ai.placeOnPlatform(sw * 3 / 4 - ai.getWidth() / 2,      groundY);
     }
 
     private void rebuildButtons(int startX, int gap) {
@@ -151,7 +177,7 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
         else { window.setExtendedState(JFrame.MAXIMIZED_BOTH); window.setVisible(true); }
     }
 
-    // ── Pause toggle ──────────────────────────────────────────────────────────
+    // ── Pause ─────────────────────────────────────────────────────────────────
     private void togglePause() {
         paused = !paused;
         if (paused) {
@@ -166,8 +192,8 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
 
     private PauseMenuOverlay.Callbacks pauseCallbacks() {
         return new PauseMenuOverlay.Callbacks() {
-            @Override public void onResume() { togglePause(); }
-            @Override public void onRestart() {
+            @Override public void onResume()   { togglePause(); }
+            @Override public void onRestart()  {
                 gameTimer.stop();
                 if (aiDelayTimer != null) aiDelayTimer.stop();
                 window.dispose();
@@ -185,7 +211,23 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
 
     // ── Game loop ─────────────────────────────────────────────────────────────
     private void update() {
-        if (gameOver || paused) return;
+        if (paused) return;
+
+        // Round-over overlay timer
+        if (showingRoundOverlay) {
+            if (System.currentTimeMillis() - roundOverlayStart >= ROUND_OVERLAY_MS) {
+                showingRoundOverlay = false;
+                if (matchOver) {
+                    endMatch();
+                } else {
+                    startNextRound();
+                }
+            }
+            repaint();
+            return;
+        }
+
+        if (roundOver) return;
 
         engine.tickDialogue();
         if (engine.isDialogueActive()) { repaint(); return; }
@@ -194,15 +236,14 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
         ai.update();
 
         if (!player.isAnyCastingSkill()) player.facingRight = PLAYER_FACES_RIGHT;
-        if (!ai.isAnyCastingSkill()) ai.facingRight = AI_FACES_RIGHT;
+        if (!ai.isAnyCastingSkill())     ai.facingRight     = AI_FACES_RIGHT;
 
         Character attacker = engine.turnSide == 1 ? player : ai;
 
         switch (phase) {
             case APPROACHING:
-                if (attacker.isCastingSkill1() || attacker.isCastingSkill2() || attacker.isCastingSkill3()) {
+                if (attacker.isCastingSkill1() || attacker.isCastingSkill2() || attacker.isCastingSkill3())
                     phase = Phase.ANIMATING;
-                }
                 break;
 
             case ANIMATING:
@@ -211,36 +252,30 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
                         || attacker.isCastingSkill3();
                 if (!stillAnim) {
                     engine.applyPendingDamage();
-                    checkGameOver();
+                    checkRoundOver();
                     phase = Phase.IMPACTED;
                 }
                 break;
 
             case IMPACTED:
-                if (!attacker.isAnyCastingSkill()) {
-                    phase = Phase.RETREATING;
-                }
+                if (!attacker.isAnyCastingSkill()) phase = Phase.RETREATING;
                 break;
 
             case RETREATING:
                 if (!attacker.isAnyCastingSkill()) {
                     engine.drainPassiveQueue();
-                    if (engine.isDialogueActive() || engine.hasPassiveMessages()) {
+                    if (engine.isDialogueActive() || engine.hasPassiveMessages())
                         phase = Phase.PASSIVE_MSG;
-                    } else {
+                    else
                         finishTurn();
-                    }
                 }
                 break;
 
             case PASSIVE_MSG:
-                if (!engine.isDialogueActive()) {
-                    finishTurn();
-                }
+                if (!engine.isDialogueActive()) finishTurn();
                 break;
 
-            default:
-                break;
+            default: break;
         }
 
         updateButtonStates();
@@ -248,7 +283,7 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
     }
 
     private void finishTurn() {
-        if (gameOver) return;
+        if (roundOver) return;
         int prevSide = engine.turnSide;
         engine.endTurn(prevSide);
         phase = Phase.IDLE;
@@ -259,24 +294,23 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
             String who = engine.turnSide == 1 ? engine.label1 : engine.label2;
             engine.enqueueDialogue(who + " is stunned and has to skip their turn!");
             engine.consumeStun(engine.turnSide);
-            engine.tickEffectsForSide(engine.turnSide);   // NEW
+            engine.tickEffectsForSide(engine.turnSide);
             engine.endTurn(engine.turnSide);
             engine.beginTurn(engine.turnSide);
         }
 
-        engine.tickEffectsForSide(engine.turnSide);       // NEW
+        engine.tickEffectsForSide(engine.turnSide);
 
-        if (engine.turnSide == 1) {
+        if (engine.turnSide == 1)
             engine.enqueueDialogue("Your turn! Choose your next attack.");
-        } else {
+        else
             scheduleAITurn();
-        }
     }
 
     private void scheduleAITurn() {
-        if (gameOver) return;
-        aiDelayTimer = new Timer(1200, e -> {
-            if (!gameOver && !paused) {
+        if (roundOver) return;
+        aiDelayTimer = new Timer(1000, e -> {
+            if (!roundOver && !paused) {
                 int skill = pickAISkill();
                 engine.resolveSkill(2, skill);
                 ai.startAttack(skill, player.getX() + player.getWidth() / 2);
@@ -290,32 +324,76 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
 
     private int pickAISkill() {
         ArrayList<Integer> avail = new ArrayList<>();
-        for (int s = 1; s <= 3; s++) {
-            if (engine.canUseSkill(2, s)) avail.add(s);
-        }
+        for (int s = 1; s <= 3; s++) if (engine.canUseSkill(2, s)) avail.add(s);
         if (avail.isEmpty()) return 1;
         return avail.get(new java.util.Random().nextInt(avail.size()));
     }
 
-    private void checkGameOver() {
+    // ── Round / match logic ───────────────────────────────────────────────────
+
+    private void checkRoundOver() {
         if (engine.stats2.hp <= 0) {
             engine.stats2.hp = 0;
-            winner = playerName.toUpperCase() + " WINS!";
-            gameOver = true; endGame();
+            winsPlayer++;
+            roundWinnerLabel = playerName.toUpperCase() + " wins Round " + matchRound + "!";
+            triggerRoundEnd();
         } else if (engine.stats1.hp <= 0) {
             engine.stats1.hp = 0;
-            winner = aiName.toUpperCase() + " WINS!";
-            gameOver = true; endGame();
+            winsAI++;
+            roundWinnerLabel = aiName.toUpperCase() + " wins Round " + matchRound + "!";
+            triggerRoundEnd();
         }
     }
 
-    private void endGame() {
+    private void triggerRoundEnd() {
+        roundOver = true;
+        phase     = Phase.IDLE;
+        if (aiDelayTimer != null) aiDelayTimer.stop();
+
+        if (winsPlayer >= WINS_NEEDED) {
+            matchWinnerLabel = playerName.toUpperCase() + " WINS THE MATCH!";
+            matchOver = true;
+        } else if (winsAI >= WINS_NEEDED) {
+            matchWinnerLabel = aiName.toUpperCase() + " WINS THE MATCH!";
+            matchOver = true;
+        }
+
+        showingRoundOverlay = true;
+        roundOverlayStart   = System.currentTimeMillis();
+        repaint();
+    }
+
+    private void startNextRound() {
+        matchRound++;
+        roundOver = false;
+        phase     = Phase.IDLE;
+
+        // Fresh engine, re-attach cached head images
+        engine       = new BattleEngine(playerName, playerName, aiName, "Enemy " + aiName);
+        engine.head1 = head1Img;
+        engine.head2 = head2Img;
+
+        // Reset character positions
+        int sw = getWidth();
+        player.facingRight = PLAYER_FACES_RIGHT;
+        ai.facingRight     = AI_FACES_RIGHT;
+        player.placeOnPlatform(sw / 4 - player.getWidth() / 2,     groundY);
+        ai.placeOnPlatform(sw * 3 / 4 - ai.getWidth() / 2,         groundY);
+
+        int gap = (int)(sw * 0.02);
+        rebuildButtons((sw - btnW * 3 - gap * 2) / 2, gap);
+
+        engine.enqueueDialogue("Round " + matchRound + "! Score: "
+                + playerName + " " + winsPlayer + " – " + winsAI + " " + aiName + ". Your turn!");
+    }
+
+    private void endMatch() {
         gameTimer.stop();
         if (aiDelayTimer != null) aiDelayTimer.stop();
         repaint();
-        new Timer(1500, e -> {
+        new Timer(1800, e -> {
             int choice = JOptionPane.showConfirmDialog(window,
-                    winner + "\n\nPlay again?", "Game Over",
+                    matchWinnerLabel + "\n\nPlay again?", "Match Over",
                     JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE);
             if (choice == JOptionPane.YES_OPTION) { window.dispose(); restartAction.run(); }
             else { window.dispose(); new LevelSelect(); }
@@ -327,7 +405,8 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
         boolean busy = phase != Phase.IDLE
                 || engine.isDialogueActive()
                 || engine.turnSide != 1
-                || paused;
+                || paused
+                || roundOver;
 
         btn1.setDisabled(busy);
         btn2.setDisabled(busy || !engine.canUseSkill(1, 2));
@@ -365,22 +444,95 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
         }
 
         engine.drawHUD(g2, sw, sh, this, vsImage, engine.turnSide == 1, engine.round);
+        drawMatchScore(g2, sw, sh);
         drawSkillButtons(g2, sw, sh);
         engine.drawDialogueBox(g2, sw, sh);
 
         if (hoveredSkill > 0 && !engine.isDialogueActive())
             engine.drawSkillTooltip(g2, 1, hoveredSkill, mousePos.x, mousePos.y, sw, sh);
 
-        engine.tooltipX = mousePos.x;
-        engine.tooltipY = mousePos.y;
+        engine.tooltipX    = mousePos.x;
+        engine.tooltipY    = mousePos.y;
         engine.tooltipText = "hover";
 
-        if (!engine.isDialogueActive() && !gameOver && phase == Phase.IDLE)
+        if (!engine.isDialogueActive() && !roundOver && phase == Phase.IDLE)
             drawTurnLabel(g2, sw, sh);
 
-        if (gameOver) drawGameOverOverlay(g2, sw, sh);
+        if (showingRoundOverlay) drawRoundOverlay(g2, sw, sh);
 
         if (paused) pauseMenu.draw(g2, sw, sh);
+    }
+
+    // ── Draw helpers ──────────────────────────────────────────────────────────
+
+    private void drawMatchScore(Graphics2D g2, int sw, int sh) {
+        int cx  = sw / 2;
+        int y   = (int)(sh * 0.165);
+        int pip = Math.max(10, (int)(sh * 0.018));
+        int gap = pip + 4;
+
+        int fs = Math.max(11, (int)(sh * 0.018));
+        g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, fs));
+        String rLabel = "Round " + matchRound + " of 3";
+        g2.setColor(new Color(255, 220, 80));
+        int rw = g2.getFontMetrics().stringWidth(rLabel);
+        g2.drawString(rLabel, cx - rw / 2, y - 4);
+
+        // Player pips (left)
+        for (int i = 0; i < WINS_NEEDED; i++) {
+            int px = cx - (int)(sw * 0.06) - i * gap;
+            if (i < winsPlayer) { g2.setColor(new Color(100, 200, 255)); g2.fillOval(px, y, pip, pip); }
+            else                 { g2.setColor(new Color(60, 80, 100));   g2.fillOval(px, y, pip, pip); }
+            g2.setColor(Color.WHITE); g2.drawOval(px, y, pip, pip);
+        }
+
+        // AI pips (right)
+        for (int i = 0; i < WINS_NEEDED; i++) {
+            int px = cx + (int)(sw * 0.04) + i * gap;
+            if (i < winsAI) { g2.setColor(new Color(255, 100, 100)); g2.fillOval(px, y, pip, pip); }
+            else             { g2.setColor(new Color(100, 60, 60));   g2.fillOval(px, y, pip, pip); }
+            g2.setColor(Color.WHITE); g2.drawOval(px, y, pip, pip);
+        }
+    }
+
+    private void drawRoundOverlay(Graphics2D g2, int sw, int sh) {
+        double elapsed = System.currentTimeMillis() - roundOverlayStart;
+        double t    = Math.min(elapsed / 300.0, 1.0);
+        double ease = 1 - Math.pow(1 - t, 3);
+
+        g2.setColor(new Color(0, 0, 0, (int)(180 * ease)));
+        g2.fillRect(0, 0, sw, sh);
+
+        int panW = (int)(sw * 0.55);
+        int panH = (int)(sh * 0.32);
+        int panX = (sw - panW) / 2;
+        int panY = (int)((sh - panH) / 2 - panH * 0.20 * (1 - ease));
+
+        g2.setColor(new Color(6, 12, 28, 230));
+        g2.fillRoundRect(panX, panY, panW, panH, 20, 20);
+        g2.setColor(new Color(72, 210, 210));
+        g2.setStroke(new BasicStroke(2.5f));
+        g2.drawRoundRect(panX, panY, panW, panH, 20, 20);
+        g2.setStroke(new BasicStroke(1f));
+
+        int cx = panX + panW / 2;
+
+        int fs1 = Math.max(20, (int)(sh * 0.042));
+        g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, fs1));
+        g2.setColor(Color.YELLOW);
+        FontMetrics fm1 = g2.getFontMetrics();
+        g2.drawString(roundWinnerLabel, cx - fm1.stringWidth(roundWinnerLabel) / 2,
+                panY + (int)(panH * 0.38) + fs1);
+
+        int fs2 = Math.max(14, (int)(sh * 0.026));
+        g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, fs2));
+        String scoreLine = matchOver
+                ? matchWinnerLabel
+                : "Score  " + playerName + " " + winsPlayer + " – " + winsAI + " " + aiName;
+        g2.setColor(matchOver ? new Color(255, 100, 100) : new Color(72, 210, 210));
+        FontMetrics fm2 = g2.getFontMetrics();
+        g2.drawString(scoreLine, cx - fm2.stringWidth(scoreLine) / 2,
+                panY + (int)(panH * 0.68) + fs2);
     }
 
     private void drawGround(Graphics2D g2, int sw, int sh) {
@@ -404,8 +556,8 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
     }
 
     private void drawTurnLabel(Graphics2D g2, int sw, int sh) {
-        String lbl = engine.turnSide == 1 ? "YOUR TURN!\nMake your move!" : aiName.toUpperCase() + "\nIS PLANNING...";
-        Color color = engine.turnSide == 1 ? new Color(100, 180, 255) : new Color(255, 80, 80);
+        String lbl   = engine.turnSide == 1 ? "YOUR TURN!\nMake your move!" : aiName.toUpperCase() + "\nIS PLANNING...";
+        Color  color = engine.turnSide == 1 ? new Color(100, 180, 255) : new Color(255, 80, 80);
         String[] lines = lbl.split("\n");
         int fs = Math.max(22, (int)(sh * 0.048));
         g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, fs));
@@ -417,16 +569,8 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
         }
     }
 
-    private void drawGameOverOverlay(Graphics2D g2, int sw, int sh) {
-        g2.setColor(new Color(0, 0, 0, 160)); g2.fillRect(0, 0, sw, sh);
-        int fs = Math.max(40, (int)(sh * 0.09));
-        g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, fs));
-        g2.setColor(Color.YELLOW);
-        g2.drawString(winner, sw / 2 - g2.getFontMetrics().stringWidth(winner) / 2, sh / 2);
-    }
-
     private void handleSkillClick(int skillNum) {
-        if (gameOver || paused || phase != Phase.IDLE || engine.turnSide != 1) return;
+        if (paused || phase != Phase.IDLE || engine.turnSide != 1 || roundOver) return;
         if (engine.isDialogueActive()) return;
         if (!engine.canUseSkill(1, skillNum)) return;
 
@@ -438,51 +582,31 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
     // ── Mouse ─────────────────────────────────────────────────────────────────
     @Override
     public void mouseClicked(MouseEvent e) {
-        if (paused) {
-            pauseMenu.handleClick(e.getPoint(), pauseCallbacks());
-            repaint();
-            return;
-        }
-        if (gameOver || !layoutReady) return;
+        if (paused) { pauseMenu.handleClick(e.getPoint(), pauseCallbacks()); repaint(); return; }
+        if (!layoutReady || roundOver || showingRoundOverlay) return;
         if (engine.isDialogueActive()) { engine.advanceDialogue(); repaint(); return; }
         if (phase != Phase.IDLE || engine.turnSide != 1) return;
         Point pt = e.getPoint();
-        if (btn1.contains(pt)) handleSkillClick(1);
+        if      (btn1.contains(pt)) handleSkillClick(1);
         else if (btn2.contains(pt)) handleSkillClick(2);
         else if (btn3.contains(pt)) handleSkillClick(3);
     }
 
-    @Override
-    public void mousePressed(MouseEvent e) {
-        if (paused) { pauseMenu.handleMousePressed(e.getPoint()); repaint(); }
-    }
-
-    @Override
-    public void mouseReleased(MouseEvent e) {
-        if (paused) pauseMenu.handleRelease();
-    }
+    @Override public void mousePressed(MouseEvent e)  { if (paused) { pauseMenu.handleMousePressed(e.getPoint()); repaint(); } }
+    @Override public void mouseReleased(MouseEvent e) { if (paused) pauseMenu.handleRelease(); }
 
     @Override
     public void mouseMoved(MouseEvent e) {
         mousePos = e.getPoint();
-        if (paused) {
-            pauseMenu.handleHover(e.getPoint());
-            repaint();
-            return;
-        }
+        if (paused) { pauseMenu.handleHover(e.getPoint()); repaint(); return; }
         hoveredSkill = btn1 != null && btn1.getBounds().contains(mousePos) ? 1
                 : btn2 != null && btn2.getBounds().contains(mousePos) ? 2
                 : btn3 != null && btn3.getBounds().contains(mousePos) ? 3 : 0;
-        setCursor(hoveredSkill > 0
-                ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-                : Cursor.getDefaultCursor());
+        setCursor(hoveredSkill > 0 ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor());
         repaint();
     }
 
-    @Override
-    public void mouseDragged(MouseEvent e) {
-        if (paused) { pauseMenu.handleDrag(e.getPoint()); repaint(); }
-    }
+    @Override public void mouseDragged(MouseEvent e) { if (paused) { pauseMenu.handleDrag(e.getPoint()); repaint(); } }
 
     // ── Keys ──────────────────────────────────────────────────────────────────
     @Override
@@ -492,12 +616,12 @@ public class AIBattlePanel extends JPanel implements MouseListener, MouseMotionL
             if (paused) return;
             if (engine.isDialogueActive()) { engine.advanceDialogue(); repaint(); }
         } else if (k == KeyEvent.VK_ESCAPE) {
-            if (!gameOver) togglePause();
+            if (!matchOver) togglePause();
         }
     }
 
-    @Override public void mouseEntered(MouseEvent e) {}
-    @Override public void mouseExited(MouseEvent e) {}
-    @Override public void keyReleased(KeyEvent e) {}
-    @Override public void keyTyped(KeyEvent e) {}
+    @Override public void mouseEntered(MouseEvent e)  {}
+    @Override public void mouseExited(MouseEvent e)   {}
+    @Override public void keyReleased(KeyEvent e)     {}
+    @Override public void keyTyped(KeyEvent e)        {}
 }

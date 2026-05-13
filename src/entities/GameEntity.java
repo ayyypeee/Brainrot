@@ -23,12 +23,18 @@ public abstract class GameEntity implements Drawable, Updatable {
     }
 
     // Getters and setters for encapsulation.
-    public int getX()       { return x; }
-    public int getY()       { return y; }
-    public void setX(int x) { this.x = x; }
-    public void setY(int y) { this.y = y; }
-    public int getWidth()   { return width; }
-    public int getHeight()  { return height; }
+    public int getX()       {
+        return x; }
+    public int getY()       {
+        return y; }
+    public void setX(int x) {
+        this.x = x; }
+    public void setY(int y) {
+        this.y = y; }
+    public int getWidth()   {
+        return width; }
+    public int getHeight()  {
+        return height; }
 
     // Keeps the entity inside the screen horizontally.
     public void setScreenBounds(int screenWidth) {

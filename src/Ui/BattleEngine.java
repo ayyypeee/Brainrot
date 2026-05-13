@@ -387,7 +387,7 @@ public class BattleEngine {
         int rfs = Math.max(14, (int)(sh * 0.028));
         g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, rfs));
         g2.setColor(Color.WHITE);
-        String roundStr = "ROUND " + round;
+        String roundStr = "TURN " + round;
         g2.drawString(roundStr, cx - g2.getFontMetrics().stringWidth(roundStr) / 2, topY + rfs);
 
         if (showVs && vsImage != null) {
